@@ -1,0 +1,12 @@
+name: FUSILLI
+channels:
+  - conda-forge
+  - bioconda
+  - nodefaults
+dependencies:
+  - python
+  - pandas
+  - snakemake
+  - samtools
+  - minimap2
+  - pip
