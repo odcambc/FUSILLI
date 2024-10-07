@@ -44,7 +44,7 @@ rule map_to_reference_bbmap:
         "idhist={output.idhist} 2> {log}"
 
 
-rule map_to_reference_bbmap_minimap2:
+rule map_to_reference_minimap2:
     """Map reads to reference sequence using minimap2."""
     input:
         R1_ec="results/{experiment}/{sample_prefix}_R1.ec.clean.trim.fastq.gz",
@@ -61,26 +61,38 @@ rule map_to_reference_bbmap_minimap2:
         "minimap2 -ax sr {params.ref_dir}/{params.ref} {input.R1_ec} {input.R2_ec} -o {output} 2> {log}"
 
 
-rule sort_index_samtools:
-    """Sort and index mapped reads using samtools."""
+rule sort_samtools:
+    """Sort mapped reads using samtools."""
     input:
         "results/{experiment}/{sample_prefix}.minimap2_mapped.sam",
     output:
-        bam="results/{experiment}/{sample_prefix}.minimap2_mapped.bam",
+        "results/{experiment}/{sample_prefix}.minimap2_sorted.bam",
     benchmark:
         "benchmarks/{experiment}/{sample_prefix}.samtools_sort.benchmark.txt"
     log:
-        "logs/{experiment}/samtools/{sample_prefix}.samtools.log",
-    params:
-        extra="-O bam --write-index -o {output.bam}",
+        "logs/{experiment}/samtools/{sample_prefix}.samtools.sort.log",
     wrapper:
         "v4.6.0/bio/samtools/sort"
+
+
+rule index_samtools:
+    """Index mapped reads using samtools."""
+    input:
+        "results/{experiment}/{sample_prefix}.minimap2_sorted.bam",
+    output:
+        "results/{experiment}/{sample_prefix}.minimap2_sorted.bam.bai",
+    benchmark:
+        "benchmarks/{experiment}/{sample_prefix}.samtools_index.benchmark.txt"
+    log:
+        "logs/{experiment}/samtools/{sample_prefix}.samtools.index.log",
+    wrapper:
+        "v4.6.0/bio/samtools/index"
 
 
 rule stats_samtools:
     """Generate alignment stats with samtools."""
     input:
-        bam="results/{experiment}/{sample_prefix}.minimap2_mapped.bam",
+        "results/{experiment}/{sample_prefix}.minimap2_sorted.bam",
     output:
         "stats/{experiment}/{sample_prefix}_map.stats.txt",
     log:
@@ -92,7 +104,7 @@ rule stats_samtools:
 rule flagstat_samtools:
     """Generate alignment stats with samtools."""
     input:
-        bam="results/{experiment}/{sample_prefix}.minimap2_mapped.bam",
+        "results/{experiment}/{sample_prefix}.minimap2_sorted.bam",
     output:
         "stats/{experiment}/{sample_prefix}_map.flagstats.txt",
     log:
@@ -104,10 +116,25 @@ rule flagstat_samtools:
 rule idxstats_samtools:
     """Generate alignment stats with samtools."""
     input:
-        bam="results/{experiment}/{sample_prefix}.minimap2_mapped.bam",
+        "results/{experiment}/{sample_prefix}.minimap2_sorted.bam",
     output:
         "stats/{experiment}/{sample_prefix}_map.idxstats.txt",
     log:
         "logs/{experiment}/samtools/{sample_prefix}.samtools_idxstats.log",
     wrapper:
         "v4.6.0/bio/samtools/idxstats"
+
+
+rule count_sam_matches:
+    """Count the number of mapped reads."""
+    input:
+        "results/{experiment}/{sample_prefix}.minimap2_sorted.bam",
+    output:
+        expand(
+            "stats/{{experiment}}/{{sample_prefix}}_map.{reference_names}_count.txt",
+            reference_names=reference_names,
+        ),
+    log:
+        "logs/{experiment}/samtools/{sample_prefix}.samtools_count.log",
+    shell:
+        "samtools view -F 0x800 {input} > {output}"

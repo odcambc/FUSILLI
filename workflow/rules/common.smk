@@ -16,6 +16,15 @@ def get_ref(wildcards):
     return prefix
 
 
+def get_ref_names(ref_file):
+    """Returns a list of reference names from a fasta file. This is used to extract
+    the potentially fused sequences."""
+    ref_names = []
+    for record in SeqIO.parse(ref_file, "fasta"):
+        ref_names.append(record.id)
+    return ref_names
+
+
 def pass_names(names):
     """Takes either an array of strings (such as files) or a single string and returns a comma-separated string.
     This is used while passing references to bbduk."""
@@ -82,6 +91,8 @@ experiments = (
 )
 
 # validate(experiments, "../schemas/experiments.schema.yaml")
+
+reference_names = get_ref_names(config["reference"])
 
 # Set variables from config and experiment files
 experiment = config["experiment"]
