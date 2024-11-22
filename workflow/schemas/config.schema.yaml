@@ -1,0 +1,44 @@
+$schema: "https://json-schema.org/draft/2020-12/schema"
+description: Barcode mapping pipeline configuration file
+properties:
+  data_dir:
+    type: string
+    description: directory containing reads
+  experiment:
+    type: string
+    description: sample condition that will be compared during differential expression analysis (e.g. a treatment, a tissue time, a disease)
+  experiment_file:
+    type: string
+    description: Location of experiment setup definition file in CSV format
+  fusion_list:
+    type: string
+    description: Location of fusion domain list in CSV format
+  samples:
+    type: array
+    description: Array of experiment file names (truncated at lane number)
+  ref_dir:
+    type: string
+    description: directory where reference files are located
+  reference:
+    type: string
+    description: reference file name
+  samtools_local:
+    type: boolean
+    default: false
+    description: Flag for whether to use local samtools or wrapper version.
+  paired_reads:
+    type: boolean
+    default: false
+    description: Flag for whether to treat reads as paired or unpaired.
+  fusion_target:
+    type: string
+    description: The name of the domain fusion target domain in the reference file.
+
+required:
+  - data_dir
+  - experiment
+  - experiment_file
+  - fusion_list
+  - fusion_target
+  - ref_dir
+  - reference

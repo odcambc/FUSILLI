@@ -1,0 +1,13 @@
+$schema: "https://json-schema.org/draft/2020-12/schema"
+description: DMS experiment definition CSV file
+properties:
+  domain:
+    type: string
+    description: Fusion domain name 
+  end_pos:
+    type: integer
+    description: Nucleotide position of final base of domain in reference sequence
+
+required:
+  - domain
+  - end_pos

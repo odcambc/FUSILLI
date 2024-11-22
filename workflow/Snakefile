@@ -1,5 +1,6 @@
 import os
 import pandas as pd
+from Bio import SeqIO
 from snakemake.utils import validate
 
 
@@ -11,9 +12,18 @@ configfile: "config/test.yaml"
 include: "rules/common.smk"
 include: "rules/baseline_qc.smk"
 include: "rules/qc.smk"
-include: "rules/ref.smk"
-include: "rules/filter.smk"
-include: "rules/map.smk"
+include: "rules/process_mapped.smk"
+
+
+if paired:
+
+    include: "rules/filter_paired.smk"
+    include: "rules/map_paired.smk"
+
+else:
+
+    include: "rules/filter_unpaired.smk"
+    include: "rules/map_unpaired.smk"
 
 
 # Pseudo-rule for running analysis
