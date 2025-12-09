@@ -40,7 +40,7 @@ rule sort_samtools:
     input:
         "results/{experiment}/{sample_prefix}.minimap2_mapped.sam",
     output:
-        "results/{experiment}/{sample_prefix}.minimap2_sorted.bam",
+        temp("results/{experiment}/{sample_prefix}.minimap2_sorted.bam"),
     benchmark:
         "benchmarks/{experiment}/{sample_prefix}.samtools_sort.benchmark.txt"
     log:
@@ -54,7 +54,7 @@ rule index_samtools:
     input:
         "results/{experiment}/{sample_prefix}.minimap2_sorted.bam",
     output:
-        "results/{experiment}/{sample_prefix}.minimap2_sorted.bam.bai",
+        temp("results/{experiment}/{sample_prefix}.minimap2_sorted.bam.bai"),
     benchmark:
         "benchmarks/{experiment}/{sample_prefix}.samtools_index.benchmark.txt"
     log:

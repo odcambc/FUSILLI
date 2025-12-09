@@ -1,0 +1,6 @@
+##gff-version 3
+amplicon_ref	GenBank	gene	199	3237	.	+	.	ID=gp17;locus_tag=gp17
+amplicon_ref	GenBank	mRNA	199	3237	.	+	.	ID=gp17.mRNA.0;Parent=gp17
+amplicon_ref	GenBank	CDS	199	3237	.	+	0	ID=gp17.mRNA.0.CDS.1;Parent=gp17.mRNA.0
+amplicon_ref	GenBank	exon	199	3237	.	+	.	ID=gp17.mRNA.0.exon.1;Parent=gp17.mRNA.0
+amplicon_ref	GenBank	polypeptide	199	3237	.	+	.	ID=gp17.polypeptide.0;Parent=gp17.mRNA.0

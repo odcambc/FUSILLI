@@ -4,11 +4,8 @@ channels:
   - bioconda
   - nodefaults
 dependencies:
-  - python
-  - pandas
-  - snakemake
+  - python>=3.11
+  - snakemake=8
   - biopython
   - samtools
-  - minimap2
   - cigar
-  - pip

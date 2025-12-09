@@ -1,0 +1,3 @@
+﻿sample,condition,replicate,time,tile,file
+gDNA_fusions,gDNA,1,0,1,gDNA_S241_L004
+pDNA_fusions,pDNA,2,0,1,pDNA_S242_L004

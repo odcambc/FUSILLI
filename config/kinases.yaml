@@ -1,0 +1,80 @@
+# Configuration for DMS analysis
+# This file is validated against the schema in "schemas/config.schema.yaml"
+
+# This is the name of the experiment. This is used to name the output files and
+# results directories, so it must be unique.
+experiment: 'kinase_fusions'
+
+# -----------------------------------------------------------------------------
+# Path definitions:
+# These paths are relative to the base snakemake invocation directory,
+# typically the root of the git repository.
+# data_dir: Directory containing the raw sequencing data. Note: _all_ reads
+#           are expected in this directory, not as subfolders!
+# ref_dir: Directory containing the reference fasta files.
+# -----------------------------------------------------------------------------
+
+data_dir: '/home/dms/kinases/PBJF01'
+ref_dir: 'references'
+
+# -----------------------------------------------------------------------------
+# File definitions:
+# These files are relative to the base snakemake invocation directory, as well.
+#
+# experiment_file: CSV file containing the experiment metadata for describing
+#                  the experiment structure and the mapping to each file.
+#                  This file must contain the following columns:
+#                     sample: Unique sample name
+#                     file: File name.
+#
+#                   This file is validated against the schema in "schemas/experiments.schema.yaml"
+#
+# fusion_list: CSV file containing the expected fusion domains. This file must contain the following columns:
+#                     domain: The domain name. This should correspond to the name given in the reference file.
+#                     end_pos: the position in the reference sequence where the expected fusion ends.
+#
+# This pipeline will filter out reads based on observing the actual breakpoint, so it is important to have the correct end positions.
+#
+# reference: Reference fasta file name. This must be a nucleotide fasta file!
+#
+# fusion_target: The name of the domain in the reference file that is expected to be the fusion target (i.e.,
+#                the domain that is expected be fused to the others).
+#
+# single_paired_readsreads: Whether or not to use unpaired reads. This is helpful to avoid spurious breakpoints.
+# -----------------------------------------------------------------------------
+
+experiment_file: 'config/kinase_samples.csv'
+
+fusion_list: 'config/kinase_fusions.csv'
+
+reference: 'kinase_sequences.fasta'
+
+paired_reads: true
+
+#fusion_target: 'Met_WT'
+
+linker_sequence: GGGAGC
+
+baseline_condition: 'baseline'
+
+run_qc: false
+
+
+# -----------------------------------------------------------------------------
+# Analysis parameters:
+#
+# -----------------------------------------------------------------------------
+kmers: 15
+sam: "1.3"
+mem: 16
+min_q: 30
+mem_fastqc: 16
+
+
+samtools_local: false
+
+
+adapters: "resources/adapters.fa"
+contaminants:
+  - "resources/sequencing_artifacts.fa.gz"
+  - "resources/phix174_ill.ref.fa.gz"
