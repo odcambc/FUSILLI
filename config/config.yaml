@@ -1,0 +1,137 @@
+# =============================================================================
+# FUSILLI Configuration
+# Fusion Utility for Scanning and Identification of Library Linked Interactions
+# =============================================================================
+#
+# This configuration file defines all parameters for the FUSILLI pipeline.
+# See the README for detailed documentation of each option.
+
+# -----------------------------------------------------------------------------
+# EXPERIMENT IDENTIFICATION
+# -----------------------------------------------------------------------------
+experiment: 'kinase_fusions_example'  # Unique name for this analysis run
+                                       # Used in output paths: results/{experiment}/
+
+# -----------------------------------------------------------------------------
+# INPUT DATA PATHS
+# -----------------------------------------------------------------------------
+# All paths are relative to the Snakemake working directory (typically repo root)
+
+data_dir: '/path/to/sequencing/data'  # Directory containing FASTQ files
+                                       # Files should be named: {sample}_R1_001.fastq.gz
+
+ref_dir: 'references'                  # Directory containing reference FASTA files
+
+# -----------------------------------------------------------------------------
+# SAMPLE DEFINITIONS
+# -----------------------------------------------------------------------------
+# CSV file mapping sample names to files and experimental conditions
+# Required columns: sample, condition, file
+# Optional columns: replicate, time, tile
+#
+# Example:
+#   sample,condition,replicate,file
+#   plasmid_rep1,baseline,1,pDNA_S1_L001
+#   treated_rep1,drug,1,treated_S2_L001
+#
+samples_file: 'config/samples.csv'
+
+# -----------------------------------------------------------------------------
+# FUSION LIBRARY DEFINITION
+# -----------------------------------------------------------------------------
+# This section defines the structure of your fusion library
+
+fusion_library:
+  # The "anchor" is the constant domain present in all fusions
+  # In a typical kinase fusion library, this is the kinase domain
+  anchor:
+    name: 'Met_WT'              # Must match a sequence name in the reference FASTA
+    position: 'downstream'      # Where the anchor appears: 'upstream' (5') or 'downstream' (3')
+
+  # The linker sequence connecting fusion partners (if any)
+  # Set to empty string '' if no linker
+  linker_sequence: 'GGGAGC'     # Gly-Ser linker (common choice)
+
+  # Fusion partners file - defines domains that will be fused to the anchor
+  # See 'config/fusion_partners.csv' for format
+  partners_file: 'config/fusion_partners.csv'
+
+  # Reference sequences file (FASTA format)
+  # Must contain sequences for anchor AND all partners
+  sequences_file: 'kinase_sequences.fasta'
+
+# -----------------------------------------------------------------------------
+# DETECTION PARAMETERS
+# -----------------------------------------------------------------------------
+detection:
+  # Method for detecting fusions
+  # 'string' - Fast k-mer string matching (recommended)
+  method: 'string'
+
+  # Size of the breakpoint detection window (nucleotides on each side)
+  # Larger = more specific but may miss reads that don't span full window
+  # Smaller = more sensitive but more potential false positives
+  # Recommended: 10-15 for 150bp reads
+  breakpoint_window: 12
+
+  # Maintain reading frame when generating breakpoints
+  # If true, only generates breakpoints at codon boundaries (every 3 nt)
+  # If false, generates all possible breakpoints (every 1 nt)
+  maintain_frame: true
+
+  # Minimum k-mer size for domain end detection (pre-filter step)
+  # Used to quickly identify which fusion partner might be present
+  kmer_size: 15
+
+# -----------------------------------------------------------------------------
+# SEQUENCING PARAMETERS
+# -----------------------------------------------------------------------------
+sequencing:
+  # Paired-end reads?
+  paired: true
+
+  # Minimum quality score for read filtering
+  min_quality: 30
+
+# -----------------------------------------------------------------------------
+# PREPROCESSING OPTIONS
+# -----------------------------------------------------------------------------
+preprocessing:
+  # Adapter trimming
+  adapters: 'resources/adapters.fa'
+
+  # Contaminant filtering (PhiX, sequencing artifacts)
+  contaminants:
+    - 'resources/sequencing_artifacts.fa.gz'
+    - 'resources/phix174_ill.ref.fa.gz'
+
+# -----------------------------------------------------------------------------
+# QC OPTIONS
+# -----------------------------------------------------------------------------
+qc:
+  # Run FastQC and MultiQC?
+  run_qc: false
+
+  # Baseline condition name (for differential analysis)
+  baseline_condition: 'baseline'
+
+# -----------------------------------------------------------------------------
+# PIPELINE BEHAVIOR
+# -----------------------------------------------------------------------------
+pipeline:
+  # Show progress during long-running steps
+  show_progress: true
+
+  # Progress update interval (percentage)
+  progress_interval: 1
+
+# -----------------------------------------------------------------------------
+# RESOURCE ALLOCATION
+# -----------------------------------------------------------------------------
+resources:
+  # Memory allocation (MB)
+  memory_mb: 16000
+
+  # Default thread count
+  threads: 16
+

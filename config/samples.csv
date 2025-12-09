@@ -1,0 +1,25 @@
+# =============================================================================
+# SAMPLE DEFINITIONS
+# =============================================================================
+# Maps sequencing files to sample metadata for the FUSILLI pipeline.
+#
+# REQUIRED COLUMNS:
+#   sample     - Unique sample identifier (used in output file names)
+#   condition  - Experimental condition (e.g., 'baseline', 'treated', 'timepoint_1')
+#   file       - Base filename prefix (without _R1_001.fastq.gz suffix)
+#
+# OPTIONAL COLUMNS:
+#   replicate  - Replicate number (integer)
+#   time       - Timepoint (for time-series experiments)
+#   tile       - Tile identifier (for tiled libraries)
+#
+# NOTES:
+# - File names are constructed as: {data_dir}/{file}_R1_001.fastq.gz
+# - The 'baseline' condition (configurable) is used as the reference for analysis
+# - Sample names must be unique
+#
+# =============================================================================
+sample,condition,replicate,time,tile,file
+gDNA_fusions,baseline,1,0,1,gDNA_S241_L004
+pDNA_fusions,baseline,2,0,1,pDNA_S242_L004
+

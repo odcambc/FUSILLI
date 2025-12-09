@@ -1,32 +1,167 @@
+"""
+FUSILLI: Fusion Utility for Scanning and Identification of Library Linked Interactions
+
+A Snakemake pipeline for fusion mutational scanning analysis.
+
+This pipeline processes short-read sequencing data from fusion construct libraries
+and produces counts of detected fusion breakpoints.
+
+USAGE:
+    # Basic run
+    snakemake -s workflow/Snakefile --cores 16
+
+    # With conda environment management
+    snakemake -s workflow/Snakefile --software-deployment-method conda --cores 16
+
+    # Dry run to see what will be executed
+    snakemake -s workflow/Snakefile -n
+
+CONFIGURATION:
+    Edit config/config.yaml to set experiment parameters.
+    See config/config.yaml for detailed documentation of all options.
+
+OUTPUT:
+    results/{experiment}/counts/{sample}.fusion_counts.csv - Per-sample fusion counts
+    results/{experiment}/fusion_counts_summary.csv - Aggregated counts across samples
+"""
+
 import os
 import pandas as pd
-from Bio import SeqIO
+from pathlib import Path
 from snakemake.utils import validate
 
 
-# Set your specific experimental configuration here
-configfile: "config/test.yaml"
+# =============================================================================
+# CONFIGURATION
+# =============================================================================
+
+# Load configuration file
+# Default to config/config.yaml, can be overridden with --configfile
+configfile: "config/config.yaml"
 
 
-# Include rules from other files
+# =============================================================================
+# INCLUDE RULE MODULES
+# =============================================================================
+
+# Common functions and configuration parsing
 include: "rules/common.smk"
-include: "rules/baseline_qc.smk"
+
+# QC rules (FastQC, MultiQC)
 include: "rules/qc.smk"
-include: "rules/process_mapped.smk"
 
-
-if paired:
-
+# Preprocessing rules depend on paired/unpaired setting
+if PAIRED:
     include: "rules/filter_paired.smk"
-    include: "rules/map_paired.smk"
-
 else:
-
     include: "rules/filter_unpaired.smk"
-    include: "rules/map_unpaired.smk"
+
+# Fusion detection via string matching
+include: "rules/process_strings.smk"
 
 
-# Pseudo-rule for running analysis
+# =============================================================================
+# TARGET RULES
+# =============================================================================
+
 rule all:
+    """
+    Default target: run complete analysis pipeline.
+
+    This pseudo-rule defines all final outputs, triggering the full pipeline.
+    """
     input:
-        get_input,
+        get_all_targets
+
+
+rule counts_only:
+    """
+    Alternative target: generate fusion counts without QC.
+    """
+    input:
+        expand(
+            "results/{experiment}/counts/{sample}.fusion_counts.csv",
+            experiment=EXPERIMENT,
+            sample=SAMPLES
+        )
+
+
+rule summary:
+    """
+    Alternative target: generate summary file only.
+
+    Useful when counts are already generated and you just want aggregation.
+    """
+    input:
+        f"results/{EXPERIMENT}/fusion_counts_summary.csv"
+
+
+rule references:
+    """
+    Alternative target: generate reference files only.
+
+    Useful for validating configuration without processing reads.
+    """
+    input:
+        f"results/{EXPERIMENT}/references/breakpoint_sequences.csv",
+        f"results/{EXPERIMENT}/references/domain_ends.csv"
+
+
+# =============================================================================
+# UTILITY RULES
+# =============================================================================
+
+rule clean:
+    """
+    Remove all generated files for this experiment.
+
+    WARNING: This will delete all results!
+    """
+    shell:
+        f"""
+        rm -rf results/{EXPERIMENT}
+        rm -rf stats/{EXPERIMENT}
+        rm -rf logs/{EXPERIMENT}
+        rm -rf benchmarks/{EXPERIMENT}
+        """
+
+
+rule clean_temp:
+    """
+    Remove temporary intermediate files while keeping final outputs.
+    """
+    shell:
+        f"""
+        rm -rf results/{EXPERIMENT}/trimmed
+        rm -rf results/{EXPERIMENT}/cleaned
+        """
+
+
+# =============================================================================
+# PIPELINE INFO
+# =============================================================================
+
+onstart:
+    print("=" * 70)
+    print("FUSILLI - Fusion Detection Pipeline")
+    print("=" * 70)
+    print(f"Experiment: {EXPERIMENT}")
+    print(f"Samples: {len(SAMPLES)}")
+    print(f"Partners: {len(PARTNERS)}")
+    print(f"Anchor: {ANCHOR_NAME}")
+    print(f"Detection method: {DETECTION_METHOD}")
+    print("=" * 70)
+
+
+onsuccess:
+    print("=" * 70)
+    print("Pipeline completed successfully!")
+    print(f"Results: results/{EXPERIMENT}/")
+    print("=" * 70)
+
+
+onerror:
+    print("=" * 70)
+    print("Pipeline failed! Check logs for details.")
+    print(f"Logs: logs/{EXPERIMENT}/")
+    print("=" * 70)

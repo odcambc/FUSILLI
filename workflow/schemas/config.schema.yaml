@@ -1,44 +1,202 @@
 $schema: "https://json-schema.org/draft/2020-12/schema"
-description: Barcode mapping pipeline configuration file
+$id: "fusilli-config-schema"
+title: "FUSILLI Configuration Schema"
+description: "Schema for validating FUSILLI pipeline configuration files"
+
+type: object
+
 properties:
-  data_dir:
-    type: string
-    description: directory containing reads
+  # -------------------------------------------------------------------------
+  # Experiment identification
+  # -------------------------------------------------------------------------
   experiment:
     type: string
-    description: sample condition that will be compared during differential expression analysis (e.g. a treatment, a tissue time, a disease)
-  experiment_file:
+    description: "Unique experiment name used in output paths"
+    pattern: "^[a-zA-Z0-9_-]+$"
+    minLength: 1
+    maxLength: 100
+
+  # -------------------------------------------------------------------------
+  # Input paths
+  # -------------------------------------------------------------------------
+  data_dir:
     type: string
-    description: Location of experiment setup definition file in CSV format
-  fusion_list:
-    type: string
-    description: Location of fusion domain list in CSV format
-  samples:
-    type: array
-    description: Array of experiment file names (truncated at lane number)
+    description: "Directory containing raw FASTQ files"
+
   ref_dir:
     type: string
-    description: directory where reference files are located
-  reference:
-    type: string
-    description: reference file name
-  samtools_local:
-    type: boolean
-    default: false
-    description: Flag for whether to use local samtools or wrapper version.
-  paired_reads:
-    type: boolean
-    default: false
-    description: Flag for whether to treat reads as paired or unpaired.
-  fusion_target:
-    type: string
-    description: The name of the domain fusion target domain in the reference file.
+    description: "Directory containing reference FASTA files"
+    default: "references"
 
+  samples_file:
+    type: string
+    description: "Path to samples CSV file"
+    pattern: ".*\\.csv$"
+
+  # -------------------------------------------------------------------------
+  # Fusion library definition
+  # -------------------------------------------------------------------------
+  fusion_library:
+    type: object
+    description: "Fusion library structure definition"
+    properties:
+      anchor:
+        type: object
+        description: "The constant domain in all fusions (e.g., kinase domain)"
+        properties:
+          name:
+            type: string
+            description: "Anchor domain name (must match FASTA header)"
+          position:
+            type: string
+            enum: ["upstream", "downstream"]
+            description: "Position of anchor: 'upstream' (5') or 'downstream' (3')"
+            default: "downstream"
+        required: [name]
+
+      linker_sequence:
+        type: string
+        description: "Nucleotide sequence of linker between domains"
+        pattern: "^[ACGTacgt]*$"
+        default: ""
+
+      partners_file:
+        type: string
+        description: "Path to fusion partners CSV file"
+        pattern: ".*\\.csv$"
+
+      sequences_file:
+        type: string
+        description: "Reference FASTA filename (in ref_dir)"
+        pattern: ".*\\.(fasta|fa|fna)$"
+
+    required: [anchor, partners_file, sequences_file]
+
+  # -------------------------------------------------------------------------
+  # Detection parameters
+  # -------------------------------------------------------------------------
+  detection:
+    type: object
+    description: "Fusion detection algorithm parameters"
+    properties:
+      method:
+        type: string
+        enum: ["string"]
+        description: "Detection method (currently only 'string' supported)"
+        default: "string"
+
+      breakpoint_window:
+        type: integer
+        description: "Nucleotides on each side of breakpoint for detection"
+        minimum: 5
+        maximum: 50
+        default: 12
+
+      maintain_frame:
+        type: boolean
+        description: "Only detect in-frame (codon-boundary) breakpoints"
+        default: true
+
+      kmer_size:
+        type: integer
+        description: "K-mer size for domain end detection"
+        minimum: 8
+        maximum: 30
+        default: 15
+
+  # -------------------------------------------------------------------------
+  # Sequencing parameters
+  # -------------------------------------------------------------------------
+  sequencing:
+    type: object
+    properties:
+      paired:
+        type: boolean
+        description: "Paired-end sequencing"
+        default: true
+
+      min_quality:
+        type: integer
+        description: "Minimum quality score for filtering"
+        minimum: 0
+        maximum: 42
+        default: 30
+
+  # -------------------------------------------------------------------------
+  # Preprocessing options
+  # -------------------------------------------------------------------------
+  preprocessing:
+    type: object
+    properties:
+      adapters:
+        type: string
+        description: "Path to adapter sequences FASTA"
+
+      contaminants:
+        type: array
+        items:
+          type: string
+        description: "Paths to contaminant sequence files"
+
+  # -------------------------------------------------------------------------
+  # QC options
+  # -------------------------------------------------------------------------
+  qc:
+    type: object
+    properties:
+      run_qc:
+        type: boolean
+        description: "Run FastQC/MultiQC quality control"
+        default: false
+
+      baseline_condition:
+        type: string
+        description: "Name of baseline condition for comparisons"
+        default: "baseline"
+
+  # -------------------------------------------------------------------------
+  # Pipeline behavior
+  # -------------------------------------------------------------------------
+  pipeline:
+    type: object
+    properties:
+      show_progress:
+        type: boolean
+        description: "Display progress during long operations"
+        default: true
+
+      progress_interval:
+        type: integer
+        description: "Progress update interval (percentage)"
+        minimum: 1
+        maximum: 50
+        default: 1
+
+  # -------------------------------------------------------------------------
+  # Resource allocation
+  # -------------------------------------------------------------------------
+  resources:
+    type: object
+    properties:
+      memory_mb:
+        type: integer
+        description: "Memory allocation in MB"
+        minimum: 1000
+        default: 16000
+
+      threads:
+        type: integer
+        description: "Default thread count"
+        minimum: 1
+        maximum: 128
+        default: 16
+
+# Required top-level properties
 required:
-  - data_dir
   - experiment
-  - experiment_file
-  - fusion_list
-  - fusion_target
-  - ref_dir
-  - reference
+  - data_dir
+  - samples_file
+  - fusion_library
+
+# Additional validation
+additionalProperties: true
