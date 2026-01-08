@@ -23,6 +23,10 @@ CONFIGURATION:
 OUTPUT:
     results/{experiment}/counts/{sample}.fusion_counts.csv - Per-sample fusion counts
     results/{experiment}/fusion_counts_summary.csv - Aggregated counts across samples
+    results/{experiment}/repro/metadata.json - Machine-readable reproducibility metadata
+    results/{experiment}/repro/metadata.txt - Human-readable reproducibility metadata
+    results/{experiment}/repro/conda-env.yaml - Conda environment export (if available)
+    results/{experiment}/repro/pip-freeze.txt - Pip freeze output (if available)
 """
 
 import os
@@ -52,12 +56,20 @@ include: "rules/qc.smk"
 
 # Preprocessing rules depend on paired/unpaired setting
 if PAIRED:
+    include: "rules/subsample.smk"
     include: "rules/filter_paired.smk"
 else:
-    include: "rules/filter_unpaired.smk"
+    raise ValueError(
+        "Single-end mode is no longer supported in the main pipeline. "
+        "Set sequencing.paired=true or use the legacy rules in "
+        "workflow/legacy/rules."
+    )
 
 # Fusion detection via string matching
 include: "rules/process_strings.smk"
+
+# Reproducibility capture
+include: "rules/reproducibility.smk"
 
 
 # =============================================================================

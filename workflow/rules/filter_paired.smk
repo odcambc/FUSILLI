@@ -16,8 +16,8 @@ rule trim_adapters:
     Also generates QC histograms for downstream analysis.
     """
     input:
-        R1=get_raw_fastq_r1,
-        R2=get_raw_fastq_r2
+        R1=get_input_fastq_r1,
+        R2=get_input_fastq_r2
     output:
         R1_trim=temp("results/{experiment}/trimmed/{sample}_R1.trim.fastq.gz"),
         R2_trim=temp("results/{experiment}/trimmed/{sample}_R2.trim.fastq.gz"),
@@ -39,18 +39,20 @@ rule trim_adapters:
     shell:
         """
         bbduk.sh \
-            in1={input.R1} \
-            in2={input.R2} \
-            out1={output.R1_trim} \
-            out2={output.R2_trim} \
-            ref={params.adapters} \
+            -Xms2g \
+            -Xmx$(( {resources.mem_mb} - 2000 ))m \
+            in1={input.R1:q} \
+            in2={input.R2:q} \
+            out1={output.R1_trim:q} \
+            out2={output.R2_trim:q} \
+            ref={params.adapters:q} \
             ktrim=r k=23 mink=10 hdist=1 tpe tbo \
-            bhist={output.bhist} \
-            qhist={output.qhist} \
-            gchist={output.gchist} \
-            aqhist={output.aqhist} \
-            lhist={output.lhist} \
-            stats={output.stats} \
+            bhist={output.bhist:q} \
+            qhist={output.qhist:q} \
+            gchist={output.gchist:q} \
+            aqhist={output.aqhist:q} \
+            lhist={output.lhist:q} \
+            stats={output.stats:q} \
             overwrite=true \
             t={threads} \
             gcbins=auto \
@@ -81,12 +83,14 @@ rule remove_contaminants:
     shell:
         """
         bbduk.sh \
-            in={input.R1_trim} \
-            in2={input.R2_trim} \
-            out={output.R1_clean} \
-            out2={output.R2_clean} \
-            stats={output.stats} \
-            ref={params.contaminants} \
+            -Xms2g \
+            -Xmx$(( {resources.mem_mb} - 2000 ))m \
+            in={input.R1_trim:q} \
+            in2={input.R2_trim:q} \
+            out={output.R1_clean:q} \
+            out2={output.R2_clean:q} \
+            stats={output.stats:q} \
+            ref={params.contaminants:q} \
             k=31 \
             overwrite=true \
             t={threads} \
@@ -121,10 +125,10 @@ rule merge_reads:
     shell:
         """
         bbmerge.sh \
-            in={input.R1_clean} \
-            in2={input.R2_clean} \
-            out={output.merged} \
-            ihist={output.ihist} \
+            in={input.R1_clean:q} \
+            in2={input.R2_clean:q} \
+            out={output.merged:q} \
+            ihist={output.ihist:q} \
             ecco mix \
             showhiststats=t \
             overwrite=true \

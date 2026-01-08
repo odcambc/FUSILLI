@@ -16,10 +16,13 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "workflow" / "scripts"))
 
 from string_matcher import (
     find_matches_in_read,
+    find_unfused_matches_in_read,
     load_breakpoint_sequences,
     load_domain_ends,
+    load_unfused_kmers,
     count_fusion_matches,
     parse_fastq_python,
+    write_counts_csv,
 )
 
 
@@ -152,6 +155,7 @@ B_1_X,B,X,1,1,CCC,10
 
         assert len(breakpoints['A']) == 2
         assert len(breakpoints['B']) == 1
+        assert set(breakpoints.keys()) == {'A', 'B'}
 
 
 # =============================================================================
@@ -175,6 +179,73 @@ CCDC6,GTGACCATC
         assert ends['TPR'] == 'GAATACTTAACA'
         assert ends['CCDC6'] == 'GTGACCATC'
 
+
+# =============================================================================
+# TEST: load_unfused_kmers
+# =============================================================================
+
+class TestLoadUnfusedKmers:
+    """Tests for loading unfused k-mer CSV files."""
+
+    def test_loads_kmers_grouped_by_length(self, tmp_path):
+        """Should group k-mers by length and map to sequence names."""
+        csv_content = """sequence_name,kmer,position_in_sequence,sequence_length
+KRAS,AAAAA,10,100
+KRAS,TTTT,20,100
+NRAS,AAAAA,15,90
+"""
+        csv_file = tmp_path / "unfused.csv"
+        csv_file.write_text(csv_content)
+
+        kmers_by_len = load_unfused_kmers(str(csv_file))
+
+        assert 5 in kmers_by_len
+        assert 4 in kmers_by_len
+        assert kmers_by_len[5]["AAAAA"] == ["KRAS", "NRAS"]
+        assert kmers_by_len[4]["TTTT"] == ["KRAS"]
+
+
+# =============================================================================
+# TEST: find_unfused_matches_in_read
+# =============================================================================
+
+class TestFindUnfusedMatchesInRead:
+    """Tests for unfused k-mer matching in reads."""
+
+    def test_detects_unfused_kmer(self):
+        """Should detect unfused sequence when k-mer is present."""
+        kmers_by_len = {3: {"AAA": ["KRAS"]}}
+        matches = find_unfused_matches_in_read("GGGAAATTT", kmers_by_len)
+        assert matches == {"KRAS"}
+
+    def test_detects_reverse_complement(self):
+        """Should detect reverse-complement matches when enabled."""
+        kmers_by_len = {3: {"AAA": ["KRAS"]}}
+        matches = find_unfused_matches_in_read("TTT", kmers_by_len, orientation_check=True)
+        assert matches == {"KRAS"}
+
+
+# =============================================================================
+# TEST: write_counts_csv
+# =============================================================================
+
+class TestWriteCountsCsv:
+    """Tests for writing fusion and unfused counts."""
+
+    def test_writes_type_column_with_unfused(self, tmp_path):
+        """Should include type column when unfused counts are provided."""
+        out_file = tmp_path / "counts.csv"
+        write_counts_csv(
+            {"TPR_1_Met_WT": 3},
+            str(out_file),
+            unfused_counts={"KRAS": 2},
+            include_type=True
+        )
+
+        rows = out_file.read_text().strip().splitlines()
+        assert rows[0] == "fusion_id,type,count"
+        assert "TPR_1_Met_WT,fusion,3" in rows
+        assert "KRAS,unfused,2" in rows
 
 # =============================================================================
 # TEST: FASTQ Parsing
@@ -296,6 +367,51 @@ IIIIIIIIIIIIIIIIII
         )
 
         assert counts == {}
+
+    def test_prefilter_fallback_detects_breakpoint(self, tmp_path):
+        """Prefilter fallback should detect breakpoint when domain end is absent."""
+        breakpoints = {
+            'TPR': {
+                'TPR_no_end': "AATTT",
+            }
+        }
+        # Domain end does not appear in the read
+        domain_ends = {'TPR': 'CCCC'}
+
+        fastq_file = tmp_path / "nolinker.fastq"
+        fastq_file.write_text("@r1\nCCAATTTGG\n+\nIIIIIIIII\n")
+
+        counts = count_fusion_matches(
+            str(fastq_file),
+            breakpoints,
+            domain_ends,
+            show_progress=False,
+            prefilter_fallback=True
+        )
+
+        assert counts.get('TPR_no_end', 0) == 1
+
+    def test_prefilter_fallback_disabled(self, tmp_path):
+        """Without fallback, missing domain end should prevent detection."""
+        breakpoints = {
+            'TPR': {
+                'TPR_no_end': "AATTT",
+            }
+        }
+        domain_ends = {'TPR': 'CCCC'}
+
+        fastq_file = tmp_path / "nofallback.fastq"
+        fastq_file.write_text("@r1\nCCAATTTGG\n+\nIIIIIIIII\n")
+
+        counts = count_fusion_matches(
+            str(fastq_file),
+            breakpoints,
+            domain_ends,
+            show_progress=False,
+            prefilter_fallback=False
+        )
+
+        assert counts.get('TPR_no_end', 0) == 0
 
 
 # =============================================================================

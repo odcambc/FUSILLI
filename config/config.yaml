@@ -47,6 +47,7 @@ fusion_library:
   anchor:
     name: 'Met_WT'              # Must match a sequence name in the reference FASTA
     position: 'downstream'      # Where the anchor appears: 'upstream' (5') or 'downstream' (3')
+    truncated_component: 'anchor'   # Which side is truncated: 'partner' or 'anchor'
 
   # The linker sequence connecting fusion partners (if any)
   # Set to empty string '' if no linker
@@ -55,10 +56,23 @@ fusion_library:
   # Fusion partners file - defines domains that will be fused to the anchor
   # See 'config/fusion_partners.csv' for format
   partners_file: 'config/fusion_partners.csv'
+  # Optional: exon partners (only used when explicitly enabled)
+  # exon_partners_file: 'config/kinases_exons.csv'
 
   # Reference sequences file (FASTA format)
   # Must contain sequences for anchor AND all partners
-  sequences_file: 'kinase_sequences.fasta'
+  sequences_file: 'kinase_sequences_hov.fasta'
+  # Optional: unfused control sequences for background detection
+  unfused_sequences_file: 'config/kinase_unfused.csv'
+
+  # Optional: variant anchors for control fusions
+  # variant_anchors:
+  #   - name: 'Met_WT'
+  #     all_partners: true
+  #     description: 'Control fusions with Met_WT against all partners'
+  #   - name: 'Met_Variant'
+  #     partners: ['TPR']
+  #     description: 'Control fusions with a specific partner'
 
 # -----------------------------------------------------------------------------
 # DETECTION PARAMETERS
@@ -72,7 +86,9 @@ detection:
   # Larger = more specific but may miss reads that don't span full window
   # Smaller = more sensitive but more potential false positives
   # Recommended: 10-15 for 150bp reads
-  breakpoint_window: 12
+  # IMPORTANT: This value (13) matches the original fusion_breakpoint_sequences.csv
+  # Do not change without regenerating ALL reference sequences
+  breakpoint_window: 13
 
   # Maintain reading frame when generating breakpoints
   # If true, only generates breakpoints at codon boundaries (every 3 nt)
@@ -82,6 +98,12 @@ detection:
   # Minimum k-mer size for domain end detection (pre-filter step)
   # Used to quickly identify which fusion partner might be present
   kmer_size: 15
+
+  # Optional: also search reverse complement to check orientation issues
+  orientation_check: false
+
+  # Optional: fallback to full breakpoint scan when pre-filter misses (debug only)
+  # prefilter_fallback: false
 
 # -----------------------------------------------------------------------------
 # SEQUENCING PARAMETERS
@@ -110,10 +132,13 @@ preprocessing:
 # -----------------------------------------------------------------------------
 qc:
   # Run FastQC and MultiQC?
-  run_qc: false
+  run_qc: true
 
   # Baseline condition name (for differential analysis)
   baseline_condition: 'baseline'
+
+# Memory for FastQC (required when qc.run_qc is true)
+mem_fastqc: 4000
 
 # -----------------------------------------------------------------------------
 # PIPELINE BEHAVIOR
@@ -135,3 +160,11 @@ resources:
   # Default thread count
   threads: 16
 
+# -----------------------------------------------------------------------------
+# QUICK MODE (SUBSAMPLING)
+# -----------------------------------------------------------------------------
+quick:
+  enabled: false          # When true, subsample reads for a fast sanity check run
+  max_reads: 100000       # Maximum reads per file to keep (applied to each mate)
+  fraction: null          # Optional fraction to keep instead of max_reads (e.g., 0.01)
+  seed: 1337              # Fixed seed for deterministic subsampling

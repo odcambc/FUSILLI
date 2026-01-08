@@ -1,46 +1,37 @@
 rule multiqc_dir:
-    """Final QC: aggregate FastQC and intermediate log files into a final report with MultiQC.
-  """
+    """Final QC: aggregate FastQC and intermediate log files into a final report with MultiQC."""
     input:
-        expand(
-            "stats/{{experiment}}/{sample_prefix}_map.stats.txt",
-            sample_prefix=samples,
-        ),
-        expand(
-            "stats/{{experiment}}/{sample_prefix}_map.idxstats.txt",
-            sample_prefix=samples,
-        ),
-        expand(
-            "stats/{{experiment}}/{sample_prefix}_map.flagstats.txt",
-            sample_prefix=samples,
-        ),
-        expand("stats/{{experiment}}/fastqc/{file}_R1_001_fastqc.html", file=files),
-        expand("stats/{{experiment}}/fastqc/{file}_R2_001_fastqc.html", file=files),
+        expand("stats/{{experiment}}/fastqc/{sample}_{read}.fastqc.html", sample=SAMPLES, read=["R1", "R2"]),
+        expand("stats/{{experiment}}/merge/{sample}.ihist", sample=SAMPLES),
     output:
         "stats/{experiment}/{experiment}_multiqc.html",
     benchmark:
         "benchmarks/{experiment}/multiqc.benchmark.txt"
     log:
         "logs/{experiment}/multiqc.log",
+    conda:
+        "../envs/qc.yaml",
     wrapper:
         "v3.1.0/bio/multiqc"
 
 
 rule fastqc:
-    """Initial QC: run FastQC on all input reads."""
+    """Initial QC: run FastQC on all input reads (raw or subsampled)."""
     input:
-        expand("{data_dir}/{{sample_read}}.fastq.gz", data_dir=config["data_dir"]),
+        fq=lambda wildcards: get_input_fastq_r1(wildcards) if wildcards.read == "R1" else get_input_fastq_r2(wildcards),
     output:
-        html="stats/{experiment}/fastqc/{sample_read}_fastqc.html",
-        zip="stats/{experiment}/fastqc/{sample_read}_fastqc.zip",
+        html="stats/{experiment}/fastqc/{sample}_{read}.fastqc.html",
+        zip="stats/{experiment}/fastqc/{sample}_{read}.fastqc.zip",
     params:
         "--quiet",
     benchmark:
-        "benchmarks/{experiment}/{sample_read}.fastqc.benchmark.txt"
+        "benchmarks/{experiment}/{sample}_{read}.fastqc.benchmark.txt"
     log:
-        "logs/{experiment}/fastqc/{sample_read}.log",
+        "logs/{experiment}/fastqc/{sample}_{read}.log",
     threads: 8
     resources:
         mem_mb=config["mem_fastqc"],
+    conda:
+        "../envs/qc.yaml",
     wrapper:
         "v3.1.0/bio/fastqc"

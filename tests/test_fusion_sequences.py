@@ -22,6 +22,9 @@ from fusion_sequences import (
     extract_breakpoint_kmer,
     generate_all_breakpoints,
     generate_domain_ends,
+    generate_variant_breakpoints,
+    generate_unfused_kmers,
+    build_exclusion_kmers,
     FusionLibraryConfig,
     BreakpointSequence
 )
@@ -111,8 +114,8 @@ class TestGenerateFusionSequence:
         expected = "ATGCCC" + "GGGAGC" + "TTTCCCAAAGGG"
         assert fusion == expected
 
-        # Breakpoint should be right after partner portion
-        assert bp_pos == 6
+        # Breakpoint should be right after partner + linker
+        assert bp_pos == 6 + len(TEST_LINKER)
 
     def test_anchor_always_full_length(self):
         """Anchor (downstream gene) should always be used in full."""
@@ -162,8 +165,9 @@ class TestGenerateFusionSequence:
             anchor_position='downstream'
         )
 
-        # Linker should be at breakpoint position
-        assert fusion[bp_pos:bp_pos + len(TEST_LINKER)] == TEST_LINKER
+        # Linker should end right before the breakpoint position
+        linker_start = bp_pos - len(TEST_LINKER)
+        assert fusion[linker_start:bp_pos] == TEST_LINKER
 
     def test_no_linker(self):
         """Should work without a linker."""
@@ -434,6 +438,81 @@ class TestGenerateDomainEnds:
         assert 'TPR' in ends
         assert 'OTHER' not in ends
 
+    def test_uses_anchor_end_when_anchor_truncated(self):
+        """
+        When the anchor is truncated, pre-filtering should still use
+        the partner 3' end k-mers for short-read breakpoint coverage.
+        """
+        sequences = {
+            'Met_WT': LONG_ANCHOR,
+            'TPR': LONG_PARTNER,
+        }
+        partners = {
+            'TPR': {'include': True, 'sequence_length': 30, 'description': ''},
+        }
+
+        ends = generate_domain_ends(
+            sequences,
+            partners,
+            anchor_name='Met_WT',
+            kmer_size=10
+        )
+
+        assert 'TPR' in ends
+        assert ends['TPR'] == LONG_PARTNER[-10:]
+
+
+# =============================================================================
+# TEST: unfused k-mer exclusion
+# =============================================================================
+
+class TestUnfusedKmerExclusion:
+    """Tests for excluding unfused k-mers that overlap breakpoint sequences."""
+
+    def test_excludes_breakpoint_overlap(self):
+        """Should drop unfused k-mers for flagged sequences only."""
+        sequences = {
+            "Anchor": "TTTCCCAAAGGG",
+            "Partner": "ATGCCCAAAGGG",
+            "Unfused": "AAACCCGGGTTT",
+            "Other": "AAACCCGGGTTT",
+        }
+        partners = {
+            "Partner": {"include": True, "sequence_length": 12, "description": ""},
+        }
+        config = FusionLibraryConfig(
+            anchor_name="Anchor",
+            anchor_position="downstream",
+            truncated_component="anchor",
+            linker_sequence="GGG",
+            breakpoint_window=3,
+            maintain_frame=True,
+            kmer_size=3,
+        )
+
+        breakpoints = generate_all_breakpoints(sequences, partners, config)
+        exclude = build_exclusion_kmers(breakpoints, kmer_size=3, include_reverse_complement=False)
+
+        unfused_config = {
+            "Unfused": {"include": True, "sequence_length": 12, "description": "", "exclude_overlap": True},
+            "Other": {"include": True, "sequence_length": 12, "description": "", "exclude_overlap": False},
+        }
+
+        unfused_kmers = generate_unfused_kmers(
+            sequences,
+            unfused_config,
+            kmer_size=3,
+            spacing=3,
+            exclude_kmers=exclude,
+            exclude_names={"Unfused"}
+        )
+
+        unfused_only = [u for u in unfused_kmers if u.sequence_name == "Unfused"]
+        other_only = [u for u in unfused_kmers if u.sequence_name == "Other"]
+
+        # Unfused (flagged) should exclude overlaps; Other can keep overlaps.
+        assert all(u.kmer not in exclude for u in unfused_only)
+        assert any(u.kmer in exclude for u in other_only)
 
 # =============================================================================
 # TEST: Specific Fusion Structure Verification
@@ -518,6 +597,38 @@ class TestFusionStructureVerification:
         # All positions should be codon boundaries
         assert all(pos % 3 == 0 for pos in breakpoint_positions)
 
+    def test_anchor_truncated_downstream_structure(self):
+        """
+        When truncated_component='anchor' with anchor downstream,
+        the partner should remain full-length upstream and the anchor
+        should be truncated downstream.
+        """
+        partner_seq = "ATGCCCAAAGGG"  # 12 nt
+        anchor_seq = "TTTCCCAAAGGG"   # 12 nt
+        config = FusionLibraryConfig(
+            anchor_name='Anchor',
+            anchor_position='downstream',
+            truncated_component='anchor',
+            linker_sequence="GGG",
+            breakpoint_window=3,
+            maintain_frame=True,
+            kmer_size=9
+        )
+
+        fusion, bp_pos = generate_fusion_sequence(
+            partner_seq=partner_seq,
+            anchor_seq=anchor_seq,
+            linker_seq=config.linker_sequence,
+            breakpoint_pos=6,
+            anchor_position=config.anchor_position,
+            truncated_component=config.truncated_component
+        )
+
+        # Expect full partner + linker + truncated anchor (anchor from 6 onward)
+        assert fusion == partner_seq + "GGG" + anchor_seq[6:]
+        # Breakpoint should be after full partner + linker
+        assert bp_pos == len(partner_seq) + len("GGG")
+
     def test_downstream_position_means_anchor_at_3prime(self):
         """
         When anchor_position='downstream', the anchor should be at the 3' end.
@@ -554,19 +665,82 @@ class TestFusionStructureVerification:
         )
 
         # Fusion: AAACCC + NNNNNN + TTTAAACCC = "AAACCCNNNNNNTTTAAACCC"
-        # bp_pos = 6 (right after partner portion)
+        # bp_pos = 12 (right after partner + linker)
 
         kmer = extract_breakpoint_kmer(fusion, bp_pos, window=4)
 
         # K-mer extraction:
         # fusion = "AAACCCNNNNNNTTTAAACCC"
-        # bp_pos = 6, window = 4
-        # start = 6 - 4 = 2
-        # end = 6 + 4 = 10
-        # fusion[2:10] = "ACCCNNNN"
-        # This is: last 4 nt of truncated partner + first 4 nt of linker
-        assert kmer == "ACCCNNNN"
+        # bp_pos = 12, window = 4
+        # start = 12 - 4 = 8
+        # end = 12 + 4 = 16
+        # fusion[8:16] = "NNNNTTTA"
+        # This is: last 4 nt of linker + first 4 nt of anchor
+        assert kmer == "NNNNTTTA"
 
+
+# =============================================================================
+# TEST: variant anchors
+# =============================================================================
+
+class TestVariantAnchors:
+    """Tests for variant anchor breakpoint generation."""
+
+    def test_variant_anchor_all_partners(self):
+        """Should generate variant breakpoints for all included partners."""
+        sequences = {
+            "Anchor": "TTTCCCAAAGGG",
+            "Variant": "AAATTTCCCGGG",
+            "P1": "ATGCCCAAAGGG",
+            "P2": "ATGAAACCCGGG",
+        }
+        partners = {
+            "P1": {"include": True, "sequence_length": 12, "description": ""},
+            "P2": {"include": True, "sequence_length": 12, "description": ""},
+        }
+        config = FusionLibraryConfig(
+            anchor_name="Anchor",
+            anchor_position="downstream",
+            truncated_component="anchor",
+            linker_sequence="GGG",
+            breakpoint_window=3,
+            maintain_frame=True,
+            kmer_size=9,
+        )
+        variant_config = {"name": "Variant", "all_partners": True}
+
+        breakpoints = generate_variant_breakpoints(sequences, partners, variant_config, config)
+        partner_names = {bp.partner_name for bp in breakpoints}
+
+        assert partner_names == {"P1", "P2"}
+
+    def test_variant_anchor_single_partner(self):
+        """Should generate variant breakpoints for a specified partner list."""
+        sequences = {
+            "Anchor": "TTTCCCAAAGGG",
+            "Variant": "AAATTTCCCGGG",
+            "P1": "ATGCCCAAAGGG",
+            "P2": "ATGAAACCCGGG",
+        }
+        partners = {
+            "P1": {"include": True, "sequence_length": 12, "description": ""},
+            "P2": {"include": True, "sequence_length": 12, "description": ""},
+        }
+        config = FusionLibraryConfig(
+            anchor_name="Anchor",
+            anchor_position="downstream",
+            truncated_component="anchor",
+            linker_sequence="GGG",
+            breakpoint_window=3,
+            maintain_frame=True,
+            kmer_size=9,
+        )
+        variant_config = {"name": "Variant", "partners": ["P1"]}
+
+        breakpoints = generate_variant_breakpoints(sequences, partners, variant_config, config)
+        partner_names = {bp.partner_name for bp in breakpoints}
+
+        assert partner_names == {"P1"}
 
 # =============================================================================
 # RUN TESTS

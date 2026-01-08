@@ -3,8 +3,8 @@
 Integration tests for FUSILLI pipeline.
 
 These tests verify the end-to-end behavior of the pipeline, specifically:
-1. Full-length downstream gene (anchor) in all fusions
-2. Variable truncation of upstream gene (partner)
+    1. Full-length upstream gene (partner) in all fusions
+    2. Variable truncation of downstream gene (anchor)
 3. Correct detection of fusion breakpoints in reads
 """
 
@@ -56,7 +56,7 @@ LINKER = "GGGAGC"  # GS linker
 class TestEndToEndFusionDetection:
     """
     Integration tests that verify the full pipeline correctly:
-    1. Generates breakpoint sequences for truncated partner + full anchor
+    1. Generates breakpoint sequences for full partner + truncated anchor
     2. Detects those breakpoints in simulated reads
     """
 
@@ -81,15 +81,16 @@ class TestEndToEndFusionDetection:
         return FusionLibraryConfig(
             anchor_name='Met_WT',
             anchor_position='downstream',
+            truncated_component='anchor',
             linker_sequence=LINKER,
-            breakpoint_window=12,
+            breakpoint_window=13,
             maintain_frame=True,
             kmer_size=15
         )
 
-    def test_generated_fusions_have_full_anchor(self, sequences, partners, config):
+    def test_generated_fusions_have_full_partner(self, sequences, partners, config):
         """
-        CRITICAL: Every generated fusion should contain the complete anchor.
+        CRITICAL: Every generated fusion should contain the complete partner.
         """
         breakpoints = generate_all_breakpoints(sequences, partners, config)
 
@@ -100,12 +101,17 @@ class TestEndToEndFusionDetection:
                 anchor_seq=sequences['Met_WT'],
                 linker_seq=config.linker_sequence,
                 breakpoint_pos=bp.breakpoint_nt,
-                anchor_position=config.anchor_position
+                anchor_position=config.anchor_position,
+                truncated_component=config.truncated_component
             )
 
-            # Verify anchor is complete at 3' end
-            assert fusion.endswith(sequences['Met_WT']), \
-                f"Fusion {bp.fusion_id} does not end with complete anchor"
+            # Verify partner is complete at 5' end
+            assert fusion.startswith(sequences['TPR']), \
+                f"Fusion {bp.fusion_id} does not start with complete partner"
+            # Verify anchor truncation matches breakpoint position
+            expected_anchor = sequences['Met_WT'][bp.breakpoint_nt:]
+            assert fusion.endswith(expected_anchor), \
+                f"Fusion {bp.fusion_id} does not end with truncated anchor"
 
     def test_different_truncations_produce_different_breakpoints(self, sequences, partners, config):
         """Each partner truncation should produce a unique breakpoint sequence."""
@@ -122,7 +128,7 @@ class TestEndToEndFusionDetection:
     def test_breakpoint_kmer_contains_junction(self, sequences, partners, config):
         """
         The breakpoint k-mer should span the junction between
-        truncated partner and linker.
+        linker and anchor.
         """
         breakpoints = generate_all_breakpoints(sequences, partners, config)
 
@@ -130,20 +136,23 @@ class TestEndToEndFusionDetection:
             # The k-mer should contain part of the partner AND part of linker/anchor
             kmer = bp.sequence
 
-            # With window=12, the kmer is 24 nt
-            # First 12 nt from end of truncated partner
-            # Last 12 nt from linker+anchor
+            # With window=13, the kmer is 26 nt
+            # First 13 nt from end of partner+linker
+            # Last 13 nt from anchor
 
             # Check that the linker appears in the junction region
             # The linker "GGGAGC" should be in the k-mer for most breakpoints
-            # (unless the breakpoint is at the very start of the partner)
-            partner_portion = sequences['TPR'][:bp.breakpoint_nt]
+            upstream_portion = sequences['TPR'] + LINKER
 
-            if bp.breakpoint_nt >= config.breakpoint_window:
-                # K-mer should contain the last part of partner
-                partner_end = partner_portion[-config.breakpoint_window:]
-                assert kmer.startswith(partner_end), \
-                    f"K-mer for {bp.fusion_id} doesn't start with partner end"
+            if len(upstream_portion) >= config.breakpoint_window:
+                # K-mer should contain the last part of partner+linker
+                upstream_end = upstream_portion[-config.breakpoint_window:]
+                assert kmer.startswith(upstream_end), \
+                    f"K-mer for {bp.fusion_id} doesn't start with upstream end"
+                # K-mer should contain the first part of truncated anchor
+                anchor_start = sequences['Met_WT'][bp.breakpoint_nt:bp.breakpoint_nt + config.breakpoint_window]
+                assert kmer.endswith(anchor_start), \
+                    f"K-mer for {bp.fusion_id} doesn't end with anchor start"
 
     def test_detection_finds_correct_fusion(self, sequences, partners, config):
         """
@@ -210,8 +219,8 @@ class TestFusionStructure:
         # Expected: AAACCC + NNN + TTTAAACCC
         assert fusion == "AAACCCNNNTTTAAACCC"
 
-        # Breakpoint is at position 6 (end of truncated partner)
-        assert bp_pos == 6
+        # Breakpoint is after partner + linker
+        assert bp_pos == 6 + len(linker)
 
         # Verify structure components
         assert fusion[:6] == "AAACCC"     # Truncated partner
@@ -238,9 +247,7 @@ class TestFusionStructure:
             )
 
             # Extract anchor portion (everything after linker)
-            linker_start = bp_pos
-            anchor_start = linker_start + len(linker)
-            anchor_portion = fusion[anchor_start:]
+            anchor_portion = fusion[bp_pos:]
 
             anchor_lengths.append(len(anchor_portion))
 
@@ -288,7 +295,7 @@ class TestEdgeCases:
         )
 
         assert fusion == "AAANNNTTTAAACCC"
-        assert bp_pos == 3
+        assert bp_pos == 3 + len("NNN")
 
     def test_full_partner_inclusion(self):
         """Should handle full partner (no truncation)."""
@@ -334,6 +341,7 @@ class TestEdgeCases:
 
         expected = "AAA" + long_linker + "TTTAAA"
         assert fusion == expected
+        assert bp_pos == 3 + len(long_linker)
 
 
 # =============================================================================

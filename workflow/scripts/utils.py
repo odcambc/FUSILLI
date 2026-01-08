@@ -178,6 +178,105 @@ def parse_partners_csv(filepath: str | Path) -> dict[str, dict]:
     return partners
 
 
+def parse_exon_partners_csv(
+    filepath: str | Path,
+    sequences: dict[str, str]
+) -> dict[str, dict]:
+    """
+    Parse exon-based partner CSV file and normalize sequence names.
+
+    Args:
+        filepath: Path to exon partners CSV file
+        sequences: Parsed FASTA sequences used to resolve lengths
+
+    Returns:
+        Dictionary mapping exon partner names to their properties.
+    """
+    filepath = Path(filepath)
+    if not filepath.exists():
+        raise FileNotFoundError(f"Exon partners file not found: {filepath}")
+
+    partners: dict[str, dict] = {}
+
+    with open(filepath, 'r') as f:
+        lines = [l for l in f if not l.strip().startswith('#')]
+
+    reader = csv.DictReader(lines)
+    required_cols = {'domain_exon_bp', 'domain', 'exon'}
+    if not required_cols.issubset(set(reader.fieldnames or [])):
+        missing = required_cols - set(reader.fieldnames or [])
+        raise ValueError(f"Missing required columns in exon partners file: {missing}")
+
+    for row in reader:
+        raw_name = row['domain_exon_bp'].strip()
+        if not raw_name:
+            continue
+
+        # Normalize exon partner names to match FASTA headers.
+        normalized = raw_name.replace("_Rev_", "_")
+        partner_name = normalized if normalized in sequences else raw_name
+
+        seq_length = len(sequences.get(partner_name, "")) if partner_name in sequences else 0
+        description = f"{row.get('domain', '').strip()} exon {row.get('exon', '').strip()}".strip()
+
+        partners[partner_name] = {
+            'sequence_length': seq_length,
+            'include': True,
+            'description': description
+        }
+
+    return partners
+
+
+def parse_unfused_sequences_csv(filepath: str | Path) -> dict[str, dict]:
+    """
+    Parse the unfused sequences CSV file.
+
+    Args:
+        filepath: Path to unfused sequences CSV file
+
+    Returns:
+        Dictionary mapping sequence names to their properties:
+        {
+            'sequence_name': {
+                'sequence_length': int,
+                'include': bool,
+                'description': str
+            }
+        }
+    """
+    filepath = Path(filepath)
+    if not filepath.exists():
+        raise FileNotFoundError(f"Unfused sequences file not found: {filepath}")
+
+    sequences = {}
+
+    with open(filepath, 'r') as f:
+        # Skip comment lines
+        lines = [l for l in f if not l.strip().startswith('#')]
+
+    reader = csv.DictReader(lines)
+
+    required_cols = {'sequence_name', 'sequence_length', 'include'}
+    if not required_cols.issubset(set(reader.fieldnames or [])):
+        missing = required_cols - set(reader.fieldnames or [])
+        raise ValueError(f"Missing required columns in unfused sequences file: {missing}")
+
+    for row in reader:
+        name = row['sequence_name'].strip()
+        if not name:
+            continue
+
+        sequences[name] = {
+            'sequence_length': int(row['sequence_length']),
+            'include': row['include'].lower() in ('true', 'yes', '1'),
+            'exclude_overlap': row.get('exclude_overlap', '').lower() in ('true', 'yes', '1'),
+            'description': row.get('description', '').strip()
+        }
+
+    return sequences
+
+
 def parse_samples_csv(filepath: str | Path) -> dict[str, dict]:
     """
     Parse the samples CSV file.
@@ -371,7 +470,8 @@ class ProgressReporter:
         desc: str = "Processing",
         interval_pct: float = 1.0,
         enabled: bool = True,
-        logger: logging.Logger | None = None
+        logger: logging.Logger | None = None,
+        report_every_seconds: int = 60
     ):
         """
         Initialize progress reporter.
@@ -388,10 +488,12 @@ class ProgressReporter:
         self.interval = max(1, int(total * interval_pct / 100))
         self.enabled = enabled
         self.logger = logger
+        self.report_every_seconds = report_every_seconds
 
         self.count = 0
         self.start_time = time.time()
         self.last_report_pct = -1
+        self.last_report_time = self.start_time
 
     def update(self, n: int = 1) -> None:
         """Update progress by n items."""
@@ -400,12 +502,17 @@ class ProgressReporter:
         if not self.enabled:
             return
 
+        now = time.time()
         if self.count % self.interval == 0 or self.count == self.total:
+            self._report()
+        elif now - self.last_report_time >= self.report_every_seconds:
             self._report()
 
     def _report(self) -> None:
         """Print progress report."""
-        pct = int(100 * self.count / self.total)
+        self.last_report_time = time.time()
+        # Cap percentage at 100% if count exceeds total (estimate was too low)
+        pct = min(100, int(100 * self.count / self.total)) if self.total > 0 else 0
 
         if pct == self.last_report_pct:
             return
@@ -414,10 +521,16 @@ class ProgressReporter:
         elapsed = time.time() - self.start_time
         rate = self.count / elapsed if elapsed > 0 else 0
 
-        remaining = (self.total - self.count) / rate if rate > 0 else 0
-        time_str = self._format_time(remaining)
-
-        msg = f"{self.desc}: {pct}% ({self.count:,}/{self.total:,}) - {time_str} remaining"
+        # Calculate remaining time, handling cases where count exceeds total
+        if rate > 0 and self.count < self.total:
+            remaining = (self.total - self.count) / rate
+            time_str = self._format_time(remaining)
+            msg = f"{self.desc}: {pct}% ({self.count:,}/{self.total:,}) - {time_str} remaining"
+        elif self.count >= self.total:
+            # Estimate was too low - show actual count vs estimate
+            msg = f"{self.desc}: {pct}% ({self.count:,}/{self.total:,} estimated) - processing..."
+        else:
+            msg = f"{self.desc}: {pct}% ({self.count:,}/{self.total:,})"
 
         if self.logger:
             self.logger.info(msg)
@@ -497,4 +610,3 @@ def progress_iterator(
         progress.update()
 
     progress.finish()
-

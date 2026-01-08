@@ -1,0 +1,2 @@
+sample,condition,replicate,time,tile,file
+test_sample,baseline,1,0,1,test_sample

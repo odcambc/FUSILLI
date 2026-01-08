@@ -15,6 +15,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "workflow" / "scripts"))
 from utils import (
     parse_fasta,
     parse_partners_csv,
+    parse_exon_partners_csv,
+    parse_unfused_sequences_csv,
     parse_samples_csv,
     validate_nucleotide_sequence,
     validate_sequences_match_config,
@@ -199,6 +201,48 @@ TPR,true
 
         with pytest.raises(ValueError, match="Missing required columns"):
             parse_partners_csv(csv_file)
+
+
+# =============================================================================
+# TEST: parse_exon_partners_csv
+# =============================================================================
+
+class TestParseExonPartnersCsv:
+    """Tests for exon partners CSV parsing."""
+
+    def test_basic_parsing(self, tmp_path):
+        """Should parse exon partners and normalize names."""
+        csv_content = """domain_exon_bp,primer,domain,fwd,exon
+EML4_Rev_ExonBP2,TTT,EML4,0,2
+"""
+        csv_file = tmp_path / "exons.csv"
+        csv_file.write_text(csv_content)
+
+        sequences = {
+            "EML4_ExonBP2": "ATGCATGC",
+        }
+
+        partners = parse_exon_partners_csv(csv_file, sequences)
+
+        assert "EML4_ExonBP2" in partners
+        assert partners["EML4_ExonBP2"]["include"] is True
+        assert partners["EML4_ExonBP2"]["sequence_length"] == 8
+
+
+class TestParseUnfusedSequencesCsv:
+    """Tests for unfused sequences CSV parsing."""
+
+    def test_parses_exclude_overlap(self, tmp_path):
+        """Should parse exclude_overlap flag when present."""
+        csv_content = """sequence_name,sequence_length,include,exclude_overlap,description
+KRAS,100,true,true,desc
+"""
+        csv_file = tmp_path / "unfused.csv"
+        csv_file.write_text(csv_content)
+
+        sequences = parse_unfused_sequences_csv(csv_file)
+
+        assert sequences["KRAS"]["exclude_overlap"] is True
 
 
 # =============================================================================

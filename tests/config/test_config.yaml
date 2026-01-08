@@ -1,0 +1,42 @@
+# Test configuration for FUSILLI pipeline
+
+experiment: 'test_experiment'
+
+data_dir: 'tests/data'
+ref_dir: 'tests/references'
+
+samples_file: 'tests/config/test_samples.csv'
+
+fusion_library:
+  anchor:
+    name: 'Met_WT'
+    position: 'downstream'
+  linker_sequence: 'GGGAGC'
+  partners_file: 'tests/config/test_partners.csv'
+  sequences_file: 'test_sequences.fasta'
+
+detection:
+  method: 'string'
+  breakpoint_window: 12
+  maintain_frame: true
+  kmer_size: 15
+
+sequencing:
+  paired: true
+  min_quality: 30
+
+preprocessing:
+  adapters: 'resources/adapters.fa'
+  contaminants: []
+
+qc:
+  run_qc: false
+  baseline_condition: 'baseline'
+
+pipeline:
+  show_progress: false
+  progress_interval: 10
+
+resources:
+  memory_mb: 4000
+  threads: 4

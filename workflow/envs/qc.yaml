@@ -1,0 +1,10 @@
+name: fusilli-qc
+channels:
+  - bioconda
+  - conda-forge
+  - nodefaults
+dependencies:
+  - python=3.11
+  - fastqc
+  - multiqc
+  - snakemake-wrapper-utils>=0.6

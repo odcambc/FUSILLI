@@ -52,6 +52,11 @@ properties:
             enum: ["upstream", "downstream"]
             description: "Position of anchor: 'upstream' (5') or 'downstream' (3')"
             default: "downstream"
+          truncated_component:
+            type: string
+            enum: ["partner", "anchor"]
+            description: "Which component is truncated when generating fusions"
+            default: "partner"
         required: [name]
 
       linker_sequence:
@@ -69,6 +74,39 @@ properties:
         type: string
         description: "Reference FASTA filename (in ref_dir)"
         pattern: ".*\\.(fasta|fa|fna)$"
+
+      variant_anchors:
+        type: array
+        description: "Variant anchor sequences (for control fusions with different anchors)"
+        items:
+          type: object
+          properties:
+            name:
+              type: string
+              description: "Variant anchor sequence name (must match FASTA header)"
+            partners:
+              type: array
+              items:
+                type: string
+              description: "List of partner names to generate variant fusions for"
+              minItems: 1
+            all_partners:
+              type: boolean
+              description: "Generate variant fusions for all included partners"
+            description:
+              type: string
+              description: "Human-readable description (optional)"
+          required: [name]
+
+      unfused_sequences_file:
+        type: string
+        description: "Path to unfused sequences CSV file (optional)"
+        pattern: ".*\\.csv$"
+
+      exon_partners_file:
+        type: string
+        description: "Path to exon-based partners CSV file (optional)"
+        pattern: ".*\\.csv$"
 
     required: [anchor, partners_file, sequences_file]
 
@@ -103,6 +141,21 @@ properties:
         minimum: 8
         maximum: 30
         default: 15
+
+      orientation_check:
+        type: boolean
+        description: "Also search reverse complement to gauge orientation issues"
+        default: false
+
+      prefilter_fallback:
+        type: boolean
+        description: "Fallback to full breakpoint scan when pre-filter misses (slow)"
+        default: false
+
+      linker_first:
+        type: boolean
+        description: "Use linker-first detection fast path before full breakpoint search"
+        default: false
 
   # -------------------------------------------------------------------------
   # Sequencing parameters

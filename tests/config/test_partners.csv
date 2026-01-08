@@ -1,0 +1,3 @@
+partner_name,sequence_length,include,description
+TPR,426,true,Test TPR partner
+CCDC6,303,true,Test CCDC6 partner

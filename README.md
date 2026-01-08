@@ -81,6 +81,9 @@ conda activate FUSILLI
 4. **Add reference sequences** to `references/`:
    - FASTA file with sequences for anchor and all partners
 
+> **Note:** The main pipeline supports paired-end data only. Single-end and
+> other legacy flows have been moved to `workflow/legacy/`.
+
 ### Run
 
 ```bash
@@ -134,6 +137,13 @@ sequencing:
 pipeline:
   show_progress: true
   progress_interval: 1       # Update every 1%
+
+# Quick-mode subsampling (optional)
+quick:
+  enabled: false        # Set true for fast sanity-check runs
+  max_reads: 100000     # Cap per mate when enabled
+  fraction: null        # Optional samplerate override (e.g., 0.01)
+  seed: 1337            # Deterministic subsampling seed
 ```
 
 ### Samples File (`config/samples.csv`)
@@ -167,6 +177,11 @@ results/{experiment}/
 │   └── domain_ends.csv            # Partner 3' ends for pre-filtering
 ├── counts/
 │   └── {sample}.fusion_counts.csv # Per-sample fusion counts
+├── repro/                         # Reproducibility metadata
+│   ├── metadata.json              # Machine-readable metadata
+│   ├── metadata.txt               # Human-readable metadata
+│   ├── conda-env.yaml             # Conda environment export (if available)
+│   └── pip-freeze.txt             # Pip freeze output (if available)
 └── fusion_counts_summary.csv      # Aggregated counts matrix
 ```
 
@@ -208,6 +223,46 @@ Anchor sequence:                          ATGAAAAAG...
 Breakpoint k-mer (window=12):
               GCTAGCGGGAGCATGAAAAA
               ←─12nt─→←─12nt─→
+```
+
+---
+
+## Reproducibility
+
+The pipeline automatically captures reproducibility metadata for each run, stored in `results/{experiment}/repro/`. This includes:
+
+- **metadata.json**: Machine-readable metadata (JSON format)
+- **metadata.txt**: Human-readable metadata with command-line invocation, versions, and OS info
+- **conda-env.yaml**: Conda environment export (if conda is available)
+- **pip-freeze.txt**: Pip freeze output (if pip is available)
+
+### Viewing Reproducibility Information
+
+```bash
+# View human-readable metadata
+cat results/{experiment}/repro/metadata.txt
+
+# View conda environment (if available)
+cat results/{experiment}/repro/conda-env.yaml
+
+# View pip packages (if available)
+cat results/{experiment}/repro/pip-freeze.txt
+```
+
+### Regenerating Reproducibility Files
+
+If you need to regenerate reproducibility files for an existing run:
+
+```bash
+# Run the reproducibility capture script directly
+python workflow/scripts/capture_reproducibility.py results/{experiment}/repro
+```
+
+Or regenerate as part of the pipeline:
+
+```bash
+# Regenerate reproducibility files only
+snakemake -s workflow/Snakefile results/{experiment}/repro/metadata.json --cores 1
 ```
 
 ---
@@ -256,6 +311,7 @@ python workflow/scripts/string_matcher.py \
 - **Memory:** Adjust `resources.memory_mb` in config
 - **Threads:** Adjust `resources.threads` in config
 - **Progress:** Disable with `pipeline.show_progress: false` for batch jobs
+- **QC:** `qc.run_qc` defaults to `true`; adjust `mem_fastqc` if needed.
 
 ---
 

@@ -38,9 +38,13 @@ REF_DIR = config.get("ref_dir", "references")
 FUSION_CONFIG = config["fusion_library"]
 ANCHOR_NAME = FUSION_CONFIG["anchor"]["name"]
 ANCHOR_POSITION = FUSION_CONFIG["anchor"].get("position", "downstream")
+TRUNCATED_COMPONENT = FUSION_CONFIG["anchor"].get("truncated_component", "partner")
 LINKER_SEQUENCE = FUSION_CONFIG.get("linker_sequence", "")
 PARTNERS_FILE = FUSION_CONFIG["partners_file"]
 SEQUENCES_FILE = FUSION_CONFIG["sequences_file"]
+UNFUSED_SEQUENCES_FILE = FUSION_CONFIG.get("unfused_sequences_file", None)
+EXON_PARTNERS_FILE = FUSION_CONFIG.get("exon_partners_file", None)
+VARIANT_ANCHORS = FUSION_CONFIG.get("variant_anchors", [])
 
 # Detection parameters
 DETECTION_CONFIG = config.get("detection", {})
@@ -48,6 +52,9 @@ DETECTION_METHOD = DETECTION_CONFIG.get("method", "string")
 BREAKPOINT_WINDOW = DETECTION_CONFIG.get("breakpoint_window", 12)
 MAINTAIN_FRAME = DETECTION_CONFIG.get("maintain_frame", True)
 KMER_SIZE = DETECTION_CONFIG.get("kmer_size", 15)
+ORIENTATION_CHECK = DETECTION_CONFIG.get("orientation_check", False)
+LINKER_FIRST = DETECTION_CONFIG.get("linker_first", False)
+PREFILTER_FALLBACK = DETECTION_CONFIG.get("prefilter_fallback", False)
 
 # Sequencing parameters
 SEQ_CONFIG = config.get("sequencing", {})
@@ -68,6 +75,13 @@ BASELINE_CONDITION = QC_CONFIG.get("baseline_condition", "baseline")
 PIPELINE_CONFIG = config.get("pipeline", {})
 SHOW_PROGRESS = PIPELINE_CONFIG.get("show_progress", True)
 PROGRESS_INTERVAL = PIPELINE_CONFIG.get("progress_interval", 1)
+
+# Quick mode
+QUICK_CONFIG = config.get("quick", {})
+QUICK_ENABLED = QUICK_CONFIG.get("enabled", False)
+QUICK_MAX_READS = QUICK_CONFIG.get("max_reads", 100000)
+QUICK_FRACTION = QUICK_CONFIG.get("fraction", None)
+QUICK_SEED = QUICK_CONFIG.get("seed", 1337)
 
 # Resources
 RESOURCES_CONFIG = config.get("resources", {})
@@ -162,14 +176,14 @@ def get_raw_fastq_r1(wildcards):
     """Get R1 FASTQ file for a sample."""
     sample = wildcards.sample
     file_prefix = SAMPLES_DF.loc[sample, "file"]
-    return f"{DATA_DIR}/{file_prefix}_R1_001.fastq.gz"
+    return str(Path(DATA_DIR) / f"{file_prefix}_R1_001.fastq.gz")
 
 
 def get_raw_fastq_r2(wildcards):
     """Get R2 FASTQ file for a sample."""
     sample = wildcards.sample
     file_prefix = SAMPLES_DF.loc[sample, "file"]
-    return f"{DATA_DIR}/{file_prefix}_R2_001.fastq.gz"
+    return str(Path(DATA_DIR) / f"{file_prefix}_R2_001.fastq.gz")
 
 
 def get_raw_fastqs(wildcards):
@@ -177,6 +191,40 @@ def get_raw_fastqs(wildcards):
     return {
         "R1": get_raw_fastq_r1(wildcards),
         "R2": get_raw_fastq_r2(wildcards)
+    }
+
+
+def get_quick_fastq_r1(wildcards):
+    """Get subsampled R1 FASTQ for a sample (quick mode)."""
+    sample = wildcards.sample
+    return f"results/{EXPERIMENT}/quick/{sample}_R1.sub.fastq.gz"
+
+
+def get_quick_fastq_r2(wildcards):
+    """Get subsampled R2 FASTQ for a sample (quick mode)."""
+    sample = wildcards.sample
+    return f"results/{EXPERIMENT}/quick/{sample}_R2.sub.fastq.gz"
+
+
+def get_input_fastq_r1(wildcards):
+    """Return appropriate R1 depending on quick mode."""
+    if QUICK_ENABLED:
+        return get_quick_fastq_r1(wildcards)
+    return get_raw_fastq_r1(wildcards)
+
+
+def get_input_fastq_r2(wildcards):
+    """Return appropriate R2 depending on quick mode."""
+    if QUICK_ENABLED:
+        return get_quick_fastq_r2(wildcards)
+    return get_raw_fastq_r2(wildcards)
+
+
+def get_input_fastqs(wildcards):
+    """Return both FASTQs depending on quick mode."""
+    return {
+        "R1": get_input_fastq_r1(wildcards),
+        "R2": get_input_fastq_r2(wildcards)
     }
 
 
@@ -229,12 +277,23 @@ def get_all_targets(wildcards):
         sample=SAMPLES
     ))
 
+    # Aggregated summary file with sample columns
+    targets.append(f"results/{EXPERIMENT}/fusion_counts_summary.csv")
+
     # QC reports if enabled
     if RUN_QC:
         targets.extend(expand(
             "stats/{experiment}/{experiment}_multiqc.html",
             experiment=EXPERIMENT
         ))
+
+    # Reproducibility metadata
+    targets.extend([
+        f"results/{EXPERIMENT}/repro/metadata.json",
+        f"results/{EXPERIMENT}/repro/metadata.txt",
+        f"results/{EXPERIMENT}/repro/conda-env.yaml",
+        f"results/{EXPERIMENT}/repro/pip-freeze.txt"
+    ])
 
     return targets
 
