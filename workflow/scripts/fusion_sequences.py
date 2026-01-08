@@ -635,6 +635,87 @@ def write_unfused_sequences_csv(
             writer.writerow(unfused.to_dict())
 
 
+def build_variant_rows(
+    breakpoints: list[BreakpointSequence],
+    partners: dict[str, dict],
+    unfused_config: dict[str, dict]
+) -> list[dict]:
+    """Build variant metadata rows for dataframe-friendly CSV output."""
+    rows: list[dict] = []
+
+    for bp in breakpoints:
+        partner_cfg = partners.get(bp.partner_name, {})
+        rows.append({
+            'fusion_id': bp.fusion_id,
+            'type': 'fusion',
+            'partner_name': bp.partner_name,
+            'anchor_name': bp.anchor_name,
+            'breakpoint_nt': bp.breakpoint_nt,
+            'breakpoint_aa': bp.breakpoint_aa,
+            'full_fusion_length': bp.full_fusion_length,
+            'variant_anchor_name': bp.variant_anchor_name or '',
+            'sequence_length': partner_cfg.get('sequence_length', ''),
+            'description': partner_cfg.get('description', '')
+        })
+
+    for name, cfg in sorted(unfused_config.items()):
+        if not cfg.get('include', False):
+            continue
+        rows.append({
+            'fusion_id': name,
+            'type': 'unfused',
+            'partner_name': '',
+            'anchor_name': '',
+            'breakpoint_nt': '',
+            'breakpoint_aa': '',
+            'full_fusion_length': '',
+            'variant_anchor_name': '',
+            'sequence_length': cfg.get('sequence_length', ''),
+            'description': cfg.get('description', '')
+        })
+
+    return rows
+
+
+def write_variants_csv(rows: list[dict], filepath: Path) -> None:
+    """Write variant metadata to a CSV file."""
+    filepath.parent.mkdir(parents=True, exist_ok=True)
+    fieldnames = [
+        'fusion_id',
+        'type',
+        'partner_name',
+        'anchor_name',
+        'breakpoint_nt',
+        'breakpoint_aa',
+        'full_fusion_length',
+        'variant_anchor_name',
+        'sequence_length',
+        'description'
+    ]
+
+    with open(filepath, 'w', newline='') as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        for row in rows:
+            writer.writerow(row)
+
+
+def write_expected_counts_csv(rows: list[dict], filepath: Path) -> None:
+    """Write a zero-count template covering all expected variants."""
+    filepath.parent.mkdir(parents=True, exist_ok=True)
+    fieldnames = ['fusion_id', 'type', 'count']
+
+    with open(filepath, 'w', newline='') as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        for row in rows:
+            writer.writerow({
+                'fusion_id': row.get('fusion_id', ''),
+                'type': row.get('type', ''),
+                'count': 0
+            })
+
+
 # =============================================================================
 # MAIN
 # =============================================================================
@@ -649,6 +730,8 @@ def main_snakemake(snakemake) -> None:
     output_breakpoints = snakemake.output.breakpoints
     output_ends = snakemake.output.ends
     output_unfused = snakemake.output.get('unfused', None)
+    output_variants = snakemake.output.get('variants', None)
+    output_expected_counts = snakemake.output.get('expected_counts', None)
 
     # Get config values
     anchor_name = snakemake.params.anchor_name
@@ -674,6 +757,8 @@ def main_snakemake(snakemake) -> None:
         output_breakpoints=output_breakpoints,
         output_ends=output_ends,
         output_unfused=output_unfused,
+        output_variants=output_variants,
+        output_expected_counts=output_expected_counts,
         anchor_name=anchor_name,
         anchor_position=anchor_position,
         truncated_component=truncated_component,
@@ -766,6 +851,14 @@ def main_cli() -> None:
         required=True,
         help='Output CSV for domain end k-mers'
     )
+    parser.add_argument(
+        '--output-variants',
+        help='Output CSV for variant metadata'
+    )
+    parser.add_argument(
+        '--output-expected-counts',
+        help='Output CSV for zero-count template'
+    )
 
     # Logging
     parser.add_argument(
@@ -798,6 +891,8 @@ def main_cli() -> None:
         maintain_frame=not args.no_frame,
         kmer_size=args.kmer_size,
         exon_partners_file=args.exon_partners,
+        output_variants=args.output_variants,
+        output_expected_counts=args.output_expected_counts,
         logger=logger
     )
 
@@ -818,6 +913,8 @@ def run_generation(
     exon_partners_file: str | None = None,
     variant_anchors: list[dict] | None = None,
     output_unfused: str | None = None,
+    output_variants: str | None = None,
+    output_expected_counts: str | None = None,
     logger=None
 ) -> None:
     """Core generation logic."""
@@ -925,6 +1022,19 @@ def run_generation(
     if logger:
         logger.info(f"Writing domain ends to: {output_ends}")
     write_domain_ends_csv(domain_ends, Path(output_ends))
+
+    if output_variants:
+        if logger:
+            logger.info(f"Writing variant catalog to: {output_variants}")
+        variant_rows = build_variant_rows(breakpoints, partners, unfused_config)
+        write_variants_csv(variant_rows, Path(output_variants))
+    else:
+        variant_rows = build_variant_rows(breakpoints, partners, unfused_config)
+
+    if output_expected_counts:
+        if logger:
+            logger.info(f"Writing expected counts template to: {output_expected_counts}")
+        write_expected_counts_csv(variant_rows, Path(output_expected_counts))
 
     # Always write unfused sequences file (even if empty) to satisfy Snakemake
     if output_unfused:

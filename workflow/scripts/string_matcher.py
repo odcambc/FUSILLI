@@ -193,6 +193,36 @@ def load_unfused_kmers(filepath: str | None) -> dict[int, dict[str, list[str]]]:
     return {k: dict(v) for k, v in kmers_by_len.items()}
 
 
+def load_unfused_sequence_names(filepath: str | None) -> list[str]:
+    """Load unique unfused sequence names from a k-mer CSV file."""
+    if not filepath:
+        return []
+
+    path = Path(filepath)
+    if not path.exists():
+        return []
+
+    sequence_names: set[str] = set()
+    with open(path, 'r') as f:
+        reader = csv.DictReader(f)
+        if not reader.fieldnames:
+            return []
+        for row in reader:
+            seq_name = row.get('sequence_name', '').strip()
+            if seq_name:
+                sequence_names.add(seq_name)
+
+    return sorted(sequence_names)
+
+
+def collect_expected_fusion_ids(breakpoints: dict[str, dict]) -> list[str]:
+    """Collect all fusion IDs from breakpoint definitions."""
+    fusion_ids: set[str] = set()
+    for bp_map in breakpoints.values():
+        fusion_ids.update(bp_map.keys())
+    return sorted(fusion_ids)
+
+
 # =============================================================================
 # MATCHING
 # =============================================================================
@@ -547,7 +577,9 @@ def write_counts_csv(
     counts: dict[str, int],
     filepath: str,
     unfused_counts: dict[str, int] | None = None,
-    include_type: bool = False
+    include_type: bool = False,
+    expected_fusions: list[str] | None = None,
+    expected_unfused: list[str] | None = None,
 ) -> None:
     """
     Write fusion counts to CSV file.
@@ -561,9 +593,17 @@ def write_counts_csv(
         else:
             writer.writerow(['fusion_id', 'count'])
 
-        def write_rows(row_counts: dict[str, int], row_type: str | None = None) -> None:
+        def write_rows(
+            row_counts: dict[str, int],
+            row_type: str | None = None,
+            expected_ids: list[str] | None = None
+        ) -> None:
+            merged_counts = dict(row_counts)
+            if expected_ids:
+                for expected_id in expected_ids:
+                    merged_counts.setdefault(expected_id, 0)
             for fusion_id, count in sorted(
-                row_counts.items(),
+                merged_counts.items(),
                 key=lambda x: (-x[1], x[0])
             ):
                 if include_type and row_type:
@@ -571,9 +611,17 @@ def write_counts_csv(
                 else:
                     writer.writerow([fusion_id, count])
 
-        write_rows(counts, 'fusion' if include_type else None)
+        write_rows(
+            counts,
+            'fusion' if include_type else None,
+            expected_ids=expected_fusions
+        )
         if unfused_counts is not None:
-            write_rows(unfused_counts, 'unfused')
+            write_rows(
+                unfused_counts,
+                'unfused',
+                expected_ids=expected_unfused
+            )
 
 
 def write_metrics_json(metrics: dict, filepath: str) -> None:
@@ -694,6 +742,10 @@ def run_matching(
 
     unfused_kmers_by_len = load_unfused_kmers(unfused_file)
     include_type = bool(unfused_file)
+    expected_fusions = collect_expected_fusion_ids(breakpoints)
+    expected_unfused = (
+        load_unfused_sequence_names(unfused_file) if include_type else None
+    )
 
     if not HAS_PYFASTX and logger:
         logger.warning(
@@ -719,7 +771,9 @@ def run_matching(
         fusion_counts,
         output_file,
         unfused_counts=unfused_counts if include_type else None,
-        include_type=include_type
+        include_type=include_type,
+        expected_fusions=expected_fusions,
+        expected_unfused=expected_unfused
     )
 
     if metrics_file:

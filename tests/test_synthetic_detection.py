@@ -111,5 +111,6 @@ def test_detects_synthetic_breakpoint(tmp_path: Path):
     assert target_bp.fusion_id in fusion_ids
     assert counts.get(target_bp.fusion_id, 0) == 5, "Expected exact count for synthetic positives"
 
-    # Ensure no false positives in negatives-only control
-    assert len(set(fusion_ids)) == 1, "Unexpected extra fusion detections"
+    # Ensure no false positives beyond the target breakpoint
+    nonzero = {fid for fid, count in counts.items() if count > 0}
+    assert nonzero == {target_bp.fusion_id}, "Unexpected extra fusion detections"

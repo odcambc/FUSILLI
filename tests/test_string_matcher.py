@@ -239,13 +239,17 @@ class TestWriteCountsCsv:
             {"TPR_1_Met_WT": 3},
             str(out_file),
             unfused_counts={"KRAS": 2},
-            include_type=True
+            include_type=True,
+            expected_fusions=["TPR_1_Met_WT", "EGFR_2_Met_WT"],
+            expected_unfused=["KRAS", "NRAS"]
         )
 
         rows = out_file.read_text().strip().splitlines()
         assert rows[0] == "fusion_id,type,count"
         assert "TPR_1_Met_WT,fusion,3" in rows
+        assert "EGFR_2_Met_WT,fusion,0" in rows
         assert "KRAS,unfused,2" in rows
+        assert "NRAS,unfused,0" in rows
 
 # =============================================================================
 # TEST: FASTQ Parsing

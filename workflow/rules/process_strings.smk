@@ -23,7 +23,9 @@ rule generate_breakpoint_sequences:
     output:
         breakpoints="results/{experiment}/references/breakpoint_sequences.csv",
         ends="results/{experiment}/references/domain_ends.csv",
-        unfused="results/{experiment}/references/unfused_sequences.csv"
+        unfused="results/{experiment}/references/unfused_sequences.csv",
+        variants="results/{experiment}/references/variant_catalog.csv",
+        expected_counts="results/{experiment}/references/expected_counts_template.csv"
     params:
         partners_file=PARTNERS_FILE,
         exon_partners_file=EXON_PARTNERS_FILE,

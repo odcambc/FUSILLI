@@ -25,6 +25,7 @@ from fusion_sequences import (
     generate_variant_breakpoints,
     generate_unfused_kmers,
     build_exclusion_kmers,
+    build_variant_rows,
     FusionLibraryConfig,
     BreakpointSequence
 )
@@ -741,6 +742,39 @@ class TestVariantAnchors:
         partner_names = {bp.partner_name for bp in breakpoints}
 
         assert partner_names == {"P1"}
+
+
+# =============================================================================
+# TEST: build_variant_rows
+# =============================================================================
+
+def test_build_variant_rows_includes_unfused():
+    """Should include fusion and unfused entries with expected fields."""
+    breakpoints = [
+        BreakpointSequence(
+            fusion_id="TPR_6_Met_WT",
+            partner_name="TPR",
+            anchor_name="Met_WT",
+            breakpoint_nt=6,
+            breakpoint_aa=2,
+            sequence="ATGCCC",
+            full_fusion_length=120,
+            variant_anchor_name=None
+        )
+    ]
+    partners = {
+        "TPR": {"sequence_length": 300, "include": True, "description": "partner"}
+    }
+    unfused_config = {
+        "KRAS": {"sequence_length": 120, "include": True, "description": "control"},
+        "SKIP": {"sequence_length": 90, "include": False, "description": "skip"}
+    }
+
+    rows = build_variant_rows(breakpoints, partners, unfused_config)
+    row_ids = {row["fusion_id"] for row in rows}
+    assert "TPR_6_Met_WT" in row_ids
+    assert "KRAS" in row_ids
+    assert "SKIP" not in row_ids
 
 # =============================================================================
 # RUN TESTS
