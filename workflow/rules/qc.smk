@@ -1,8 +1,60 @@
+def get_multiqc_inputs(wildcards):
+    inputs = []
+    inputs.extend(
+        expand(
+            "stats/{{experiment}}/fastqc/{sample}_{read}.fastqc.html",
+            sample=SAMPLES,
+            read=["R1", "R2"],
+        )
+    )
+    inputs.extend(expand("stats/{{experiment}}/merge/{sample}.ihist", sample=SAMPLES))
+    inputs.extend(expand("stats/{{experiment}}/quality/{sample}.stats.txt", sample=SAMPLES))
+    inputs.extend([
+        "results/{experiment}/fusion_qc_metrics.csv",
+        "results/{experiment}/sensitivity_metrics.csv",
+        "results/{experiment}/decay_metrics.csv",
+        "results/{experiment}/partner_counts_summary.csv",
+        "results/{experiment}/fusion_counts_summary.csv",
+    ])
+    inputs.extend(
+        expand(
+            "results/{{experiment}}/counts/{sample}.fusion_metrics.json",
+            sample=SAMPLES
+        )
+    )
+    inputs.extend(
+        expand(
+            "results/{{experiment}}/counts/{sample}.partner_counts.csv",
+            sample=SAMPLES
+        )
+    )
+    if UNMERGED_DETECTION:
+        inputs.extend([
+            "results/{experiment}/unmerged_qc_metrics.csv",
+            "results/{experiment}/unmerged_counts_summary.csv",
+            "results/{experiment}/unmerged_partner_counts_summary.csv",
+        ])
+        inputs.extend(
+            expand(
+                "results/{{experiment}}/counts/{sample}.{mate}.unmerged_fusion_metrics.json",
+                sample=SAMPLES,
+                mate=["R1", "R2"]
+            )
+        )
+        inputs.extend(
+            expand(
+                "results/{{experiment}}/counts/{sample}.{mate}.unmerged_partner_counts.csv",
+                sample=SAMPLES,
+                mate=["R1", "R2"]
+            )
+        )
+    return inputs
+
+
 rule multiqc_dir:
     """Final QC: aggregate FastQC and intermediate log files into a final report with MultiQC."""
     input:
-        expand("stats/{{experiment}}/fastqc/{sample}_{read}.fastqc.html", sample=SAMPLES, read=["R1", "R2"]),
-        expand("stats/{{experiment}}/merge/{sample}.ihist", sample=SAMPLES),
+        get_multiqc_inputs
     output:
         "stats/{experiment}/{experiment}_multiqc.html",
     benchmark:

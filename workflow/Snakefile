@@ -96,6 +96,15 @@ rule counts_only:
             experiment=EXPERIMENT,
             sample=SAMPLES
         )
+        + (
+            expand(
+                "results/{experiment}/counts/{sample}.{mate}.unmerged_fusion_counts.csv",
+                experiment=EXPERIMENT,
+                sample=SAMPLES,
+                mate=["R1", "R2"]
+            )
+            if UNMERGED_DETECTION else []
+        )
 
 
 rule summary:

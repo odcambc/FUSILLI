@@ -11,6 +11,10 @@ These tests verify the end-to-end behavior of the pipeline, specifically:
 import pytest
 import sys
 import gzip
+import csv
+import shutil
+import subprocess
+import os
 from pathlib import Path
 
 # Add workflow/scripts to path for imports
@@ -21,10 +25,12 @@ from fusion_sequences import (
     generate_all_breakpoints,
     generate_domain_ends,
     FusionLibraryConfig,
+    run_generation,
 )
 from string_matcher import (
     find_matches_in_read,
     count_fusion_matches,
+    run_matching,
 )
 
 
@@ -47,6 +53,20 @@ TPR_PARTNER = (
 )  # 180 nt
 
 LINKER = "GGGAGC"  # GS linker
+
+
+def _write_fastq(path: Path, reads: list[str]) -> None:
+    """Write a minimal FASTQ file for testing."""
+    with path.open("w") as fh:
+        for i, seq in enumerate(reads, 1):
+            fh.write(f"@read{i}\n{seq}\n+\n{'I' * len(seq)}\n")
+
+
+def _write_fastq_gz(path: Path, reads: list[str]) -> None:
+    """Write a minimal gzipped FASTQ file for testing."""
+    with gzip.open(path, "wt") as fh:
+        for i, seq in enumerate(reads, 1):
+            fh.write(f"@read{i}\n{seq}\n+\n{'I' * len(seq)}\n")
 
 
 # =============================================================================
@@ -503,6 +523,263 @@ IIIIIIIIIIIIIIIIIIII
 
         # Should have 2 counts for our test breakpoint
         assert counts.get(test_bp.fusion_id, 0) == 2
+
+
+# =============================================================================
+# TEST: Full Run with Known Output
+# =============================================================================
+
+def test_full_run_small_dataset(tmp_path):
+    """Full run from references to counts with a known expected outcome."""
+    sequences = {
+        "Anchor": MET_KINASE[:36],
+        "Partner": TPR_PARTNER[:30],
+        "Unfused": MET_KINASE[60:90],
+    }
+
+    fasta_path = tmp_path / "sequences.fasta"
+    with fasta_path.open("w") as fh:
+        for name, seq in sequences.items():
+            fh.write(f">{name}\n{seq}\n")
+
+    partners_path = tmp_path / "partners.csv"
+    with partners_path.open("w", newline="") as fh:
+        writer = csv.writer(fh)
+        writer.writerow(["partner_name", "sequence_length", "include", "description"])
+        writer.writerow(["Partner", len(sequences["Partner"]), "true", ""])
+
+    unfused_path = tmp_path / "unfused.csv"
+    with unfused_path.open("w", newline="") as fh:
+        writer = csv.writer(fh)
+        writer.writerow(["sequence_name", "sequence_length", "include", "exclude_overlap", "description"])
+        writer.writerow(["Unfused", len(sequences["Unfused"]), "true", "false", "control"])
+
+    refs_dir = tmp_path / "refs"
+    breakpoints_path = refs_dir / "breakpoints.csv"
+    ends_path = refs_dir / "domain_ends.csv"
+    unfused_kmers_path = refs_dir / "unfused_sequences.csv"
+    variants_path = refs_dir / "variant_catalog.csv"
+    expected_counts_path = refs_dir / "expected_counts_template.csv"
+
+    run_generation(
+        sequences_file=str(fasta_path),
+        partners_file=str(partners_path),
+        output_breakpoints=str(breakpoints_path),
+        output_ends=str(ends_path),
+        anchor_name="Anchor",
+        anchor_position="downstream",
+        truncated_component="anchor",
+        linker_sequence="GGGAGC",
+        breakpoint_window=15,
+        maintain_frame=True,
+        kmer_size=9,
+        unfused_sequences_file=str(unfused_path),
+        output_unfused=str(unfused_kmers_path),
+        output_variants=str(variants_path),
+        output_expected_counts=str(expected_counts_path),
+        logger=None,
+    )
+
+    with breakpoints_path.open() as fh:
+        reader = csv.DictReader(fh)
+        bp_rows = list(reader)
+
+    seq_counts: dict[str, int] = {}
+    for row in bp_rows:
+        seq = row["breakpoint_sequence"]
+        seq_counts[seq] = seq_counts.get(seq, 0) + 1
+
+    target_row = next(
+        (row for row in bp_rows if seq_counts[row["breakpoint_sequence"]] == 1),
+        bp_rows[0],
+    )
+    target_id = target_row["fusion_id"]
+    target_seq = target_row["breakpoint_sequence"]
+
+    reads = [f"AAAA{target_seq}TTTT"] * 3 + [
+        "ACGT" * 10,
+        "TTTTGGGGCCCCAAAATTTT",
+    ]
+    fastq_path = tmp_path / "reads.fastq"
+    _write_fastq(fastq_path, reads)
+
+    counts_path = tmp_path / "counts.csv"
+    run_matching(
+        fastq_file=str(fastq_path),
+        breakpoints_file=str(breakpoints_path),
+        ends_file=str(ends_path),
+        unfused_file=str(unfused_kmers_path),
+        output_file=str(counts_path),
+        show_progress=False,
+        progress_interval=50,
+        logger=None,
+        prefilter_fallback=False,
+    )
+
+    with counts_path.open() as fh:
+        counts_rows = list(csv.DictReader(fh))
+
+    counts = {row["fusion_id"]: int(row["count"]) for row in counts_rows}
+    count_types = {row["fusion_id"]: row.get("type", "") for row in counts_rows}
+
+    assert counts.get(target_id, 0) == 3
+    nonzero = {fid for fid, count in counts.items() if count > 0}
+    assert nonzero == {target_id}
+
+    with variants_path.open() as fh:
+        variants_rows = list(csv.DictReader(fh))
+    with expected_counts_path.open() as fh:
+        expected_rows = list(csv.DictReader(fh))
+
+    variants_set = {(row["fusion_id"], row["type"]) for row in variants_rows}
+    expected_set = {(row["fusion_id"], row["type"]) for row in expected_rows}
+    counts_set = {(fid, count_types.get(fid, "")) for fid in counts.keys()}
+
+    assert variants_set == expected_set == counts_set
+    assert all(int(row["count"]) == 0 for row in expected_rows)
+
+
+def test_snakemake_counts_only(tmp_path):
+    """Run Snakemake on a tiny dataset and confirm expected counts."""
+    if shutil.which("snakemake") is None:
+        pytest.skip("snakemake not available in PATH")
+
+    repo_root = Path(__file__).resolve().parents[1]
+    snakefile = repo_root / "workflow" / "Snakefile"
+
+    experiment = "smoke_test"
+    sample = "sample1"
+    data_dir = tmp_path / "data"
+    ref_dir = tmp_path / "refs"
+    data_dir.mkdir()
+    ref_dir.mkdir()
+
+    sequences = {
+        "Anchor": MET_KINASE[:60],
+        "Partner": TPR_PARTNER[:45],
+        "Unfused": MET_KINASE[60:90],
+    }
+
+    fasta_path = ref_dir / "sequences.fasta"
+    with fasta_path.open("w") as fh:
+        for name, seq in sequences.items():
+            fh.write(f">{name}\n{seq}\n")
+
+    partners_path = tmp_path / "partners.csv"
+    with partners_path.open("w", newline="") as fh:
+        writer = csv.writer(fh)
+        writer.writerow(["partner_name", "sequence_length", "include", "description"])
+        writer.writerow(["Partner", len(sequences["Partner"]), "true", ""])
+
+    unfused_path = tmp_path / "unfused.csv"
+    with unfused_path.open("w", newline="") as fh:
+        writer = csv.writer(fh)
+        writer.writerow(["sequence_name", "sequence_length", "include", "exclude_overlap", "description"])
+        writer.writerow(["Unfused", len(sequences["Unfused"]), "true", "false", "control"])
+
+    samples_path = tmp_path / "samples.csv"
+    with samples_path.open("w", newline="") as fh:
+        writer = csv.writer(fh)
+        writer.writerow(["sample", "condition", "file"])
+        writer.writerow([sample, "baseline", "S1"])
+
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(
+        "\n".join([
+            f"experiment: '{experiment}'",
+            f"data_dir: '{data_dir}'",
+            f"ref_dir: '{ref_dir.name}'",
+            f"samples_file: '{samples_path.name}'",
+            "fusion_library:",
+            "  anchor:",
+            "    name: 'Anchor'",
+            "    position: 'downstream'",
+            "    truncated_component: 'anchor'",
+            "  linker_sequence: 'GGGAGC'",
+            f"  partners_file: '{partners_path.name}'",
+            f"  sequences_file: '{fasta_path.name}'",
+            f"  unfused_sequences_file: '{unfused_path.name}'",
+            "detection:",
+            "  method: 'string'",
+            "  breakpoint_window: 14",
+            "  maintain_frame: true",
+            "  kmer_size: 8",
+            "  orientation_check: false",
+            "  prefilter_fallback: false",
+            "sequencing:",
+            "  paired: true",
+            "qc:",
+            "  run_qc: false",
+            "mem_fastqc: 1000",
+            "pipeline:",
+            "  show_progress: false",
+            "resources:",
+            "  threads: 1",
+        ])
+    )
+
+    config = FusionLibraryConfig(
+        anchor_name="Anchor",
+        anchor_position="downstream",
+        truncated_component="anchor",
+        linker_sequence="GGGAGC",
+        breakpoint_window=14,
+        maintain_frame=True,
+        kmer_size=8,
+    )
+    partners = {"Partner": {"include": True, "sequence_length": len(sequences["Partner"]), "description": ""}}
+    breakpoints = generate_all_breakpoints(sequences, partners, config)
+
+    seq_counts: dict[str, int] = {}
+    for bp in breakpoints:
+        seq_counts[bp.sequence] = seq_counts.get(bp.sequence, 0) + 1
+    target_bp = next((bp for bp in breakpoints if seq_counts[bp.sequence] == 1), breakpoints[0])
+
+    merged_path = tmp_path / "results" / experiment / "merged" / f"{sample}_merged.fastq.gz"
+    merged_path.parent.mkdir(parents=True, exist_ok=True)
+    _write_fastq_gz(merged_path, [f"AAAA{target_bp.sequence}TTTT"] * 2)
+
+    env = os.environ.copy()
+    env["XDG_CACHE_HOME"] = str(tmp_path / "cache")
+
+    result = subprocess.run(
+        [
+            "snakemake",
+            "-s",
+            str(snakefile),
+            "--configfile",
+            str(config_path),
+            "--directory",
+            str(tmp_path),
+            "--cores",
+            "1",
+            "--shared-fs-usage",
+            "none",
+            "--",
+            "counts_only",
+        ],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+
+    counts_path = tmp_path / "results" / experiment / "counts" / f"{sample}.fusion_counts.csv"
+    assert counts_path.exists()
+
+    with counts_path.open() as fh:
+        rows = list(csv.DictReader(fh))
+    counts = {row["fusion_id"]: int(row["count"]) for row in rows}
+    nonzero = {fid for fid, count in counts.items() if count > 0}
+
+    assert counts.get(target_bp.fusion_id, 0) == 2
+    assert nonzero == {target_bp.fusion_id}
+
+    variants_path = tmp_path / "results" / experiment / "references" / "variant_catalog.csv"
+    expected_counts_path = tmp_path / "results" / experiment / "references" / "expected_counts_template.csv"
+    assert variants_path.exists()
+    assert expected_counts_path.exists()
 
 
 # =============================================================================

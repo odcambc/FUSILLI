@@ -354,6 +354,41 @@ def find_unfused_matches_in_read(
     return matches
 
 
+def find_partner_hits(
+    sequence: str,
+    domain_ends: dict[str, str],
+    linker_sequence: str = "",
+    orientation_check: bool = False,
+    rc_domain_ends: dict[str, str] | None = None,
+) -> tuple[set[str], set[str]]:
+    """
+    Find partner end k-mer hits, and partner+linker heuristic hits.
+
+    Returns:
+        (partner_end_hits, partner_linker_hits)
+    """
+    partner_hits: set[str] = set()
+    partner_linker_hits: set[str] = set()
+
+    linker_in_forward = bool(linker_sequence) and linker_sequence in sequence
+    for partner_name, end_kmer in domain_ends.items():
+        if end_kmer in sequence:
+            partner_hits.add(partner_name)
+            if linker_in_forward:
+                partner_linker_hits.add(partner_name)
+
+    if orientation_check and rc_domain_ends:
+        rc_seq = reverse_complement(sequence)
+        linker_in_rc = bool(linker_sequence) and linker_sequence in rc_seq
+        for partner_name, end_kmer in rc_domain_ends.items():
+            if end_kmer in rc_seq:
+                partner_hits.add(partner_name)
+                if linker_in_rc:
+                    partner_linker_hits.add(partner_name)
+
+    return partner_hits, partner_linker_hits
+
+
 def count_fusion_matches(
     fastq_file: str,
     breakpoints: dict[str, dict],
@@ -454,6 +489,7 @@ def count_all_matches(
     breakpoints: dict[str, dict],
     domain_ends: dict[str, str],
     unfused_kmers_by_len: dict[int, dict[str, list[str]]] | None,
+    linker_sequence: str = "",
     show_progress: bool = True,
     progress_interval: float = 1.0,
     logger=None,
@@ -476,7 +512,11 @@ def count_all_matches(
         "unfused_reads": 0,
         "unfused_total_matches": 0,
         "unique_unfused_detected": 0,
+        "partner_end_reads": 0,
+        "partner_linker_reads": 0,
     }
+    partner_end_counts = defaultdict(int)
+    partner_linker_counts = defaultdict(int)
 
     estimated_total = estimate_read_count(fastq_file)
 
@@ -534,6 +574,22 @@ def count_all_matches(
             metrics["forward_match_events"] += int(f_hit) * len(matches)
             metrics["rc_match_events"] += int(rc_hit) * len(matches)
 
+        partner_hits, partner_linker_hits = find_partner_hits(
+            seq,
+            domain_ends,
+            linker_sequence=linker_sequence,
+            orientation_check=orientation_check,
+            rc_domain_ends=rc_domain_ends,
+        )
+        if partner_hits:
+            metrics["partner_end_reads"] += 1
+            for partner_name in partner_hits:
+                partner_end_counts[partner_name] += 1
+        if partner_linker_hits:
+            metrics["partner_linker_reads"] += 1
+            for partner_name in partner_linker_hits:
+                partner_linker_counts[partner_name] += 1
+
         if unfused_kmers_by_len:
             unfused_matches, uf_hit, uf_rc_hit = find_unfused_matches_in_read(
                 seq,
@@ -557,6 +613,10 @@ def count_all_matches(
     metrics["unique_fusions_detected"] = len(fusion_counts)
     metrics["unfused_total_matches"] = unfused_match_count
     metrics["unique_unfused_detected"] = len(unfused_counts)
+    metrics["unique_partners_detected"] = len(partner_end_counts)
+    metrics["unique_partner_linker_detected"] = len(partner_linker_counts)
+    metrics["partner_end_counts"] = dict(partner_end_counts)
+    metrics["partner_linker_counts"] = dict(partner_linker_counts)
 
     if logger:
         logger.info(f"Processed {read_count:,} reads")
@@ -633,6 +693,26 @@ def write_metrics_json(metrics: dict, filepath: str) -> None:
         json.dump(metrics, f, indent=2)
 
 
+def write_partner_counts_csv(
+    partner_end_counts: dict[str, int],
+    partner_linker_counts: dict[str, int],
+    filepath: str
+) -> None:
+    """Write partner counts to CSV."""
+    Path(filepath).parent.mkdir(parents=True, exist_ok=True)
+    partners = sorted(set(partner_end_counts) | set(partner_linker_counts))
+
+    with open(filepath, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(['partner_name', 'partner_end_count', 'partner_linker_count'])
+        for partner in partners:
+            writer.writerow([
+                partner,
+                int(partner_end_counts.get(partner, 0)),
+                int(partner_linker_counts.get(partner, 0))
+            ])
+
+
 # =============================================================================
 # MAIN
 # =============================================================================
@@ -646,11 +726,13 @@ def main_snakemake(snakemake) -> None:
 
     output_file = snakemake.output.counts
     metrics_file = getattr(snakemake.output, "metrics", None)
+    partner_counts_file = getattr(snakemake.output, "partner_counts", None)
 
     show_progress = snakemake.params.get('show_progress', True)
     progress_interval = snakemake.params.get('progress_interval', 1)
     orientation_check = snakemake.params.get('orientation_check', False)
     prefilter_fallback = snakemake.params.get('prefilter_fallback', False)
+    linker_sequence = snakemake.params.get('linker_sequence', '')
 
     log_file = snakemake.log[0] if snakemake.log else None
     logger = setup_logging(log_file, name='string_matcher')
@@ -666,6 +748,8 @@ def main_snakemake(snakemake) -> None:
         metrics_file=metrics_file,
         orientation_check=orientation_check,
         prefilter_fallback=prefilter_fallback,
+        linker_sequence=linker_sequence,
+        partner_counts_file=partner_counts_file,
         unfused_file=unfused_file,
     )
 
@@ -683,11 +767,13 @@ def main_cli() -> None:
     parser.add_argument('-e', '--ends', required=True, help='Domain ends CSV file')
     parser.add_argument('-o', '--output', required=True, help='Output counts CSV file')
     parser.add_argument('--metrics', help='Optional metrics JSON output')
+    parser.add_argument('--partner-counts', help='Optional partner counts CSV output')
     parser.add_argument('-u', '--unfused', help='Optional unfused sequences CSV file')
     parser.add_argument('--progress', action='store_true', default=True, help='Show progress (default: on)')
     parser.add_argument('--no-progress', action='store_true', help='Disable progress display')
     parser.add_argument('--progress-interval', type=float, default=1.0, help='Progress update interval in % (default: 1)')
     parser.add_argument('--orientation-check', action='store_true', help='Also search reverse complement to gauge orientation issues')
+    parser.add_argument('--linker-sequence', default='', help='Optional linker sequence for partner+linker counts')
     parser.add_argument('--log', help='Log file path')
     parser.add_argument('-v', '--verbose', action='store_true', help='Verbose output')
 
@@ -709,6 +795,8 @@ def main_cli() -> None:
         logger=logger,
         metrics_file=args.metrics,
         orientation_check=args.orientation_check,
+        linker_sequence=args.linker_sequence,
+        partner_counts_file=args.partner_counts,
     )
 
 
@@ -720,8 +808,10 @@ def run_matching(
     output_file: str,
     show_progress: bool,
     progress_interval: float,
+    linker_sequence: str = "",
     logger=None,
     metrics_file: str | None = None,
+    partner_counts_file: str | None = None,
     orientation_check: bool = False,
     prefilter_fallback: bool = False,
 ) -> None:
@@ -758,12 +848,51 @@ def run_matching(
         breakpoints=breakpoints,
         domain_ends=domain_ends,
         unfused_kmers_by_len=unfused_kmers_by_len,
+        linker_sequence=linker_sequence,
         show_progress=show_progress,
         progress_interval=progress_interval,
         logger=logger,
         orientation_check=orientation_check,
         prefilter_fallback=prefilter_fallback,
     )
+
+    reads_processed = metrics.get("reads_processed", 0)
+    metrics["prefilter_pass_rate"] = (
+        metrics.get("prefilter_pass_reads", 0) / reads_processed
+        if reads_processed else 0.0
+    )
+    metrics["match_rate"] = (
+        metrics.get("matched_reads", 0) / reads_processed
+        if reads_processed else 0.0
+    )
+    metrics["unfused_rate"] = (
+        metrics.get("unfused_reads", 0) / reads_processed
+        if reads_processed else 0.0
+    )
+
+    expected_fusion_total = len(expected_fusions)
+    expected_unfused_total = len(expected_unfused or [])
+    metrics["expected_fusions"] = expected_fusion_total
+    metrics["expected_unfused"] = expected_unfused_total
+    metrics["expected_variants"] = expected_fusion_total + expected_unfused_total
+    metrics["fusion_coverage"] = (
+        metrics.get("unique_fusions_detected", 0) / expected_fusion_total
+        if expected_fusion_total else 0.0
+    )
+    metrics["unfused_coverage"] = (
+        metrics.get("unique_unfused_detected", 0) / expected_unfused_total
+        if expected_unfused_total else 0.0
+    )
+
+    if fusion_counts:
+        sorted_counts = sorted(fusion_counts.values(), reverse=True)
+        top1 = sorted_counts[0]
+        top10 = sum(sorted_counts[:10])
+        metrics["top1_fusion_count"] = int(top1)
+        metrics["top10_fusion_count"] = int(top10)
+        metrics["top10_fusion_frac_reads"] = (
+            top10 / metrics["matched_reads"] if metrics["matched_reads"] else 0.0
+        )
 
     if logger:
         logger.info(f"Writing counts to: {output_file}")
@@ -788,6 +917,15 @@ def run_matching(
                 top_count / metrics["matched_reads"] if metrics["matched_reads"] else 0.0
             )
         write_metrics_json(metrics, metrics_file)
+
+    if partner_counts_file:
+        if logger:
+            logger.info(f"Writing partner counts to: {partner_counts_file}")
+        write_partner_counts_csv(
+            metrics.get("partner_end_counts", {}),
+            metrics.get("partner_linker_counts", {}),
+            partner_counts_file
+        )
 
     if logger:
         logger.info("Done!")

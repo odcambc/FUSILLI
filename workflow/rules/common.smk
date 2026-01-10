@@ -55,6 +55,7 @@ KMER_SIZE = DETECTION_CONFIG.get("kmer_size", 15)
 ORIENTATION_CHECK = DETECTION_CONFIG.get("orientation_check", False)
 LINKER_FIRST = DETECTION_CONFIG.get("linker_first", False)
 PREFILTER_FALLBACK = DETECTION_CONFIG.get("prefilter_fallback", False)
+UNMERGED_DETECTION = DETECTION_CONFIG.get("unmerged_detection", False)
 
 # Sequencing parameters
 SEQ_CONFIG = config.get("sequencing", {})
@@ -277,8 +278,21 @@ def get_all_targets(wildcards):
         sample=SAMPLES
     ))
 
+    if UNMERGED_DETECTION:
+        targets.extend(expand(
+            "results/{experiment}/counts/{sample}.{mate}.unmerged_fusion_counts.csv",
+            experiment=EXPERIMENT,
+            sample=SAMPLES,
+            mate=["R1", "R2"]
+        ))
+        targets.append(f"results/{EXPERIMENT}/unmerged_counts_summary.csv")
+        targets.append(f"results/{EXPERIMENT}/unmerged_qc_metrics.csv")
+        targets.append(f"results/{EXPERIMENT}/unmerged_partner_counts_summary.csv")
+
     # Aggregated summary file with sample columns
     targets.append(f"results/{EXPERIMENT}/fusion_counts_summary.csv")
+    targets.append(f"results/{EXPERIMENT}/sensitivity_metrics.csv")
+    targets.append(f"results/{EXPERIMENT}/decay_metrics.csv")
 
     # QC reports if enabled
     if RUN_QC:

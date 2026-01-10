@@ -98,6 +98,41 @@ rule remove_contaminants:
         """
 
 
+rule filter_quality:
+    """
+    Filter reads based on minimum quality thresholds using BBDuk.
+    """
+    input:
+        R1_clean="results/{experiment}/cleaned/{sample}_R1.clean.fastq.gz",
+        R2_clean="results/{experiment}/cleaned/{sample}_R2.clean.fastq.gz"
+    output:
+        R1_qc=temp("results/{experiment}/quality/{sample}_R1.quality.fastq.gz"),
+        R2_qc=temp("results/{experiment}/quality/{sample}_R2.quality.fastq.gz"),
+        stats="stats/{experiment}/quality/{sample}.stats.txt"
+    log:
+        "logs/{experiment}/bbduk/{sample}.quality.log"
+    benchmark:
+        "benchmarks/{experiment}/{sample}.bbduk_quality.txt"
+    threads: DEFAULT_THREADS
+    resources:
+        mem_mb=DEFAULT_MEMORY
+    shell:
+        """
+        bbduk.sh \
+            -Xms2g \
+            -Xmx$(( {resources.mem_mb} - 2000 ))m \
+            in={input.R1_clean:q} \
+            in2={input.R2_clean:q} \
+            out={output.R1_qc:q} \
+            out2={output.R2_qc:q} \
+            stats={output.stats:q} \
+            qtrim=rl trimq={MIN_QUALITY} maq={MIN_QUALITY} \
+            overwrite=true \
+            t={threads} \
+            2> {log}
+        """
+
+
 rule merge_reads:
     """
     Merge paired-end reads with error correction using BBMerge.
@@ -110,10 +145,12 @@ rule merge_reads:
     higher confidence sequence spanning the breakpoint.
     """
     input:
-        R1_clean="results/{experiment}/cleaned/{sample}_R1.clean.fastq.gz",
-        R2_clean="results/{experiment}/cleaned/{sample}_R2.clean.fastq.gz"
+        R1_clean="results/{experiment}/quality/{sample}_R1.quality.fastq.gz",
+        R2_clean="results/{experiment}/quality/{sample}_R2.quality.fastq.gz"
     output:
         merged="results/{experiment}/merged/{sample}_merged.fastq.gz",
+        unmerged_r1="results/{experiment}/merged/{sample}_R1.unmerged.fastq.gz",
+        unmerged_r2="results/{experiment}/merged/{sample}_R2.unmerged.fastq.gz",
         ihist="stats/{experiment}/merge/{sample}.ihist"
     log:
         "logs/{experiment}/bbmerge/{sample}.log"
@@ -128,6 +165,8 @@ rule merge_reads:
             in={input.R1_clean:q} \
             in2={input.R2_clean:q} \
             out={output.merged:q} \
+            outu={output.unmerged_r1:q} \
+            outu2={output.unmerged_r2:q} \
             ihist={output.ihist:q} \
             ecco mix \
             showhiststats=t \
