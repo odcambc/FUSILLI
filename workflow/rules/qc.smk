@@ -2,17 +2,33 @@ def get_multiqc_inputs(wildcards):
     inputs = []
     inputs.extend(
         expand(
+            "stats/{{experiment}}/fastqc/{sample}_{read}.fastqc.zip",
+            sample=SAMPLES,
+            read=["R1", "R2"],
+        )
+    )
+    inputs.append("stats/{experiment}/fastqc")
+    inputs.extend(expand("stats/{{experiment}}/merge/{sample}.ihist", sample=SAMPLES))
+    inputs.extend(expand("stats/{{experiment}}/trim/{sample}.trim.stats.txt", sample=SAMPLES))
+    inputs.extend(expand("stats/{{experiment}}/contam/{sample}.contam.stats.txt", sample=SAMPLES))
+    inputs.extend(
+        expand(
             "stats/{{experiment}}/fastqc/{sample}_{read}.fastqc.html",
             sample=SAMPLES,
             read=["R1", "R2"],
         )
     )
-    inputs.extend(expand("stats/{{experiment}}/merge/{sample}.ihist", sample=SAMPLES))
-    inputs.extend(expand("stats/{{experiment}}/quality/{sample}.stats.txt", sample=SAMPLES))
+    inputs.extend(expand("logs/{{experiment}}/bbmerge/{sample}.log", sample=SAMPLES))
+    inputs.extend(expand("logs/{{experiment}}/bbduk/{sample}.trim.log", sample=SAMPLES))
+    inputs.extend(expand("logs/{{experiment}}/bbduk/{sample}.clean.log", sample=SAMPLES))
+    inputs.extend(expand("logs/{{experiment}}/bbduk/{sample}.quality.log", sample=SAMPLES))
     inputs.extend([
         "results/{experiment}/fusion_qc_metrics.csv",
         "results/{experiment}/sensitivity_metrics.csv",
         "results/{experiment}/decay_metrics.csv",
+        "results/{experiment}/trim_metrics.csv",
+        "results/{experiment}/contam_metrics.csv",
+        "results/{experiment}/quality_metrics.csv",
         "results/{experiment}/partner_counts_summary.csv",
         "results/{experiment}/fusion_counts_summary.csv",
     ])
@@ -63,6 +79,8 @@ rule multiqc_dir:
         "logs/{experiment}/multiqc.log",
     conda:
         "../envs/qc.yaml",
+    params:
+        config="config/multiqc_config.yaml"
     wrapper:
         "v3.1.0/bio/multiqc"
 

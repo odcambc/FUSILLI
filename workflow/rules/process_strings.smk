@@ -127,15 +127,27 @@ rule aggregate_counts:
             sample=SAMPLES
         ),
         trim_stats=expand(
-            "stats/{{experiment}}/trim/{sample}.stats.txt",
+            "stats/{{experiment}}/trim/{sample}.trim.stats.txt",
             sample=SAMPLES
         ),
         contam_stats=expand(
-            "stats/{{experiment}}/contam/{sample}.stats.txt",
+            "stats/{{experiment}}/contam/{sample}.contam.stats.txt",
             sample=SAMPLES
         ),
         quality_stats=expand(
-            "stats/{{experiment}}/quality/{sample}.stats.txt",
+            "stats/{{experiment}}/quality/{sample}.quality.stats.txt",
+            sample=SAMPLES
+        ),
+        trim_logs=expand(
+            "logs/{{experiment}}/bbduk/{sample}.trim.log",
+            sample=SAMPLES
+        ),
+        contam_logs=expand(
+            "logs/{{experiment}}/bbduk/{sample}.clean.log",
+            sample=SAMPLES
+        ),
+        quality_logs=expand(
+            "logs/{{experiment}}/bbduk/{sample}.quality.log",
             sample=SAMPLES
         )
     output:
@@ -143,7 +155,10 @@ rule aggregate_counts:
         qc_metrics="results/{experiment}/fusion_qc_metrics.csv",
         partner_summary="results/{experiment}/partner_counts_summary.csv",
         sensitivity_metrics="results/{experiment}/sensitivity_metrics.csv",
-        decay_metrics="results/{experiment}/decay_metrics.csv"
+        decay_metrics="results/{experiment}/decay_metrics.csv",
+        trim_metrics="results/{experiment}/trim_metrics.csv",
+        contam_metrics="results/{experiment}/contam_metrics.csv",
+        quality_metrics="results/{experiment}/quality_metrics.csv"
     run:
         import json
         import pandas as pd
@@ -494,6 +509,35 @@ rule aggregate_counts:
                 "output_bases": output_bases,
             }
 
+        def _parse_bbduk_log(path):
+            if not Path(path).exists():
+                return None
+            input_reads = None
+            input_bases = None
+            result_reads = None
+            result_bases = None
+            with open(path, "r") as fh:
+                for line in fh:
+                    line = line.strip()
+                    if line.startswith("Input:"):
+                        match = re.search(r"Input:\s*([0-9,]+)\s+reads\s+([0-9,]+)\s+bases", line)
+                        if match:
+                            input_reads = int(match.group(1).replace(",", ""))
+                            input_bases = int(match.group(2).replace(",", ""))
+                    elif line.startswith("Result:"):
+                        match = re.search(r"Result:\s*([0-9,]+)\s+reads\s+([0-9,]+)\s+bases", line)
+                        if match:
+                            result_reads = int(match.group(1).replace(",", ""))
+                            result_bases = int(match.group(2).replace(",", ""))
+            if input_reads is None or result_reads is None:
+                return None
+            return {
+                "input_reads": input_reads,
+                "input_bases": input_bases,
+                "output_reads": result_reads,
+                "output_bases": result_bases,
+            }
+
         def _parse_bbmerge_stats(path):
             if not Path(path).exists():
                 return None
@@ -520,18 +564,33 @@ rule aggregate_counts:
 
         trim_stats = {}
         for path in input.trim_stats:
-            sample = Path(path).stem
+            sample = Path(path).stem.replace(".trim", "")
             trim_stats[sample] = _parse_bbduk_stats(path)
 
         contam_stats = {}
         for path in input.contam_stats:
-            sample = Path(path).stem
+            sample = Path(path).stem.replace(".contam", "")
             contam_stats[sample] = _parse_bbduk_stats(path)
 
         quality_stats = {}
         for path in input.quality_stats:
-            sample = Path(path).stem
+            sample = Path(path).stem.replace(".quality", "")
             quality_stats[sample] = _parse_bbduk_stats(path)
+
+        trim_logs = {}
+        for path in input.trim_logs:
+            sample = Path(path).stem.replace(".trim", "")
+            trim_logs[sample] = _parse_bbduk_log(path)
+
+        contam_logs = {}
+        for path in input.contam_logs:
+            sample = Path(path).stem.replace(".clean", "")
+            contam_logs[sample] = _parse_bbduk_log(path)
+
+        quality_logs = {}
+        for path in input.quality_logs:
+            sample = Path(path).stem.replace(".quality", "")
+            quality_logs[sample] = _parse_bbduk_log(path)
 
         merge_stats_simple = {}
         for path in input.merge_logs:
@@ -545,14 +604,21 @@ rule aggregate_counts:
             quality = quality_stats.get(sample)
             merged = merge_stats_simple.get(sample)
 
-            raw_reads = trim["input_reads"] if trim else 0
-            raw_bases = trim["input_bases"] if trim else None
+            trim_log = trim_logs.get(sample)
+            contam_log = contam_logs.get(sample)
+            quality_log = quality_logs.get(sample)
+
+            raw_reads = trim_log["input_reads"] if trim_log else (trim["input_reads"] if trim else 0)
+            raw_bases = trim_log["input_bases"] if trim_log else (trim["input_bases"] if trim else None)
 
             steps = [
                 ("raw", raw_reads, raw_bases),
-                ("trimmed", trim["output_reads"] if trim else 0, trim["output_bases"] if trim else None),
-                ("cleaned", contam["output_reads"] if contam else 0, contam["output_bases"] if contam else None),
-                ("quality", quality["output_reads"] if quality else 0, quality["output_bases"] if quality else None),
+                ("trimmed", trim_log["output_reads"] if trim_log else (trim["output_reads"] if trim else 0),
+                 trim_log["output_bases"] if trim_log else (trim["output_bases"] if trim else None)),
+                ("cleaned", contam_log["output_reads"] if contam_log else (contam["output_reads"] if contam else 0),
+                 contam_log["output_bases"] if contam_log else (contam["output_bases"] if contam else None)),
+                ("quality", quality_log["output_reads"] if quality_log else (quality["output_reads"] if quality else 0),
+                 quality_log["output_bases"] if quality_log else (quality["output_bases"] if quality else None)),
                 ("merged", merged["merged_reads"] if merged else 0, merged["merged_bases"] if merged else None),
             ]
 
@@ -566,7 +632,17 @@ rule aggregate_counts:
                     "base_fraction": float(bases / raw_bases) if raw_bases and bases is not None else 0.0,
                 })
 
-        pd.DataFrame(decay_rows).to_csv(output.decay_metrics, index=False)
+        decay_df = pd.DataFrame(decay_rows)
+        decay_df.to_csv(output.decay_metrics, index=False)
+
+        for step_name, out_path in [
+            ("trimmed", output.trim_metrics),
+            ("cleaned", output.contam_metrics),
+            ("quality", output.quality_metrics),
+        ]:
+            step_df = decay_df[decay_df["step"] == step_name].copy()
+            step_df = step_df.drop(columns=["step"], errors="ignore")
+            step_df.to_csv(out_path, index=False)
 
 
 rule aggregate_unmerged_counts:

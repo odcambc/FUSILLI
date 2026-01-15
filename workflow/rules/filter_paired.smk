@@ -26,7 +26,7 @@ rule trim_adapters:
         gchist="stats/{experiment}/trim/{sample}.gchist",
         aqhist="stats/{experiment}/trim/{sample}.aqhist",
         lhist="stats/{experiment}/trim/{sample}.lhist",
-        stats="stats/{experiment}/trim/{sample}.stats.txt"
+        stats="stats/{experiment}/trim/{sample}.trim.stats.txt"
     params:
         adapters=ADAPTERS_REF
     log:
@@ -70,7 +70,7 @@ rule remove_contaminants:
     output:
         R1_clean=temp("results/{experiment}/cleaned/{sample}_R1.clean.fastq.gz"),
         R2_clean=temp("results/{experiment}/cleaned/{sample}_R2.clean.fastq.gz"),
-        stats="stats/{experiment}/contam/{sample}.stats.txt"
+        stats="stats/{experiment}/contam/{sample}.contam.stats.txt"
     params:
         contaminants=CONTAMINANTS_REF
     log:
@@ -108,7 +108,7 @@ rule filter_quality:
     output:
         R1_qc=temp("results/{experiment}/quality/{sample}_R1.quality.fastq.gz"),
         R2_qc=temp("results/{experiment}/quality/{sample}_R2.quality.fastq.gz"),
-        stats="stats/{experiment}/quality/{sample}.stats.txt"
+        stats="stats/{experiment}/quality/{sample}.quality.stats.txt"
     log:
         "logs/{experiment}/bbduk/{sample}.quality.log"
     benchmark:
@@ -162,10 +162,10 @@ rule merge_reads:
     shell:
         """
         bbmerge.sh \
-            in={input.R1_clean:q} \
+            in1={input.R1_clean:q} \
             in2={input.R2_clean:q} \
             out={output.merged:q} \
-            outu={output.unmerged_r1:q} \
+            outu1={output.unmerged_r1:q} \
             outu2={output.unmerged_r2:q} \
             ihist={output.ihist:q} \
             ecco mix \

@@ -108,10 +108,30 @@ def parse_fastq(filepath: str) -> Iterator[tuple[str, str, str]]:
     """
     Parse FASTQ file, using fastest available method.
     """
+    def is_empty_fastq(path: str) -> bool:
+        try:
+            if os.path.getsize(path) == 0:
+                return True
+            opener = gzip.open if path.endswith('.gz') else open
+            with opener(path, 'rt') as fh:
+                return fh.readline() == ''
+        except OSError:
+            return True
+
+    if is_empty_fastq(filepath):
+        return
+
     if HAS_PYFASTX:
-        yield from parse_fastq_pyfastx(filepath)
-    else:
+        try:
+            yield from parse_fastq_pyfastx(filepath)
+            return
+        except (RuntimeError, OSError, ValueError):
+            pass
+
+    try:
         yield from parse_fastq_python(filepath)
+    except (RuntimeError, OSError, ValueError):
+        return
 
 
 def estimate_read_count(filepath: str) -> int:

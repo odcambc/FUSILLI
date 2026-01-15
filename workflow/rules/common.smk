@@ -293,6 +293,9 @@ def get_all_targets(wildcards):
     targets.append(f"results/{EXPERIMENT}/fusion_counts_summary.csv")
     targets.append(f"results/{EXPERIMENT}/sensitivity_metrics.csv")
     targets.append(f"results/{EXPERIMENT}/decay_metrics.csv")
+    targets.append(f"results/{EXPERIMENT}/trim_metrics.csv")
+    targets.append(f"results/{EXPERIMENT}/contam_metrics.csv")
+    targets.append(f"results/{EXPERIMENT}/quality_metrics.csv")
 
     # QC reports if enabled
     if RUN_QC:

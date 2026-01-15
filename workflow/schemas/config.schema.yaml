@@ -157,6 +157,11 @@ properties:
         description: "Use linker-first detection fast path before full breakpoint search"
         default: false
 
+      unmerged_detection:
+        type: boolean
+        description: "Also scan unmerged mates for breakpoint matches"
+        default: false
+
   # -------------------------------------------------------------------------
   # Sequencing parameters
   # -------------------------------------------------------------------------
