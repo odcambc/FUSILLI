@@ -419,6 +419,210 @@ IIIIIIIIIIIIIIIIII
 
 
 # =============================================================================
+# TEST: Unmerged Read Processing
+# =============================================================================
+
+class TestUnmergedReadProcessing:
+    """Tests for processing unmerged paired-end reads (R1 and R2 separately)."""
+
+    def test_process_unmerged_r1_separately(self, tmp_path):
+        """Should process R1 unmerged reads separately and detect breakpoints."""
+        breakpoints = {
+            'TPR': {
+                'TPR_126_Met_WT': 'CTGAAGGGGCGGGGGAGCATGAAA',
+            }
+        }
+        # Use a domain end that appears in the breakpoint sequence
+        domain_ends = {'TPR': 'GGGAGCATGAAA'}
+
+        # Create R1 FASTQ with known breakpoint
+        r1_fastq = tmp_path / "sample_R1.unmerged.fastq.gz"
+        with gzip.open(r1_fastq, 'wt') as f:
+            f.write("@read1\n")
+            f.write("AAAA" + breakpoints['TPR']['TPR_126_Met_WT'] + "TTTT\n")
+            f.write("+\n")
+            f.write("I" * (4 + len(breakpoints['TPR']['TPR_126_Met_WT']) + 4) + "\n")
+
+        counts = count_fusion_matches(
+            str(r1_fastq),
+            breakpoints,
+            domain_ends,
+            show_progress=False
+        )
+
+        assert counts.get('TPR_126_Met_WT', 0) == 1
+
+    def test_process_unmerged_r2_separately(self, tmp_path):
+        """Should process R2 unmerged reads separately and detect breakpoints."""
+        breakpoints = {
+            'TPR': {
+                'TPR_126_Met_WT': 'CTGAAGGGGCGGGGGAGCATGAAA',
+            }
+        }
+        domain_ends = {'TPR': 'GGGAGCATGAAA'}
+
+        # Create R2 FASTQ with known breakpoint
+        r2_fastq = tmp_path / "sample_R2.unmerged.fastq.gz"
+        with gzip.open(r2_fastq, 'wt') as f:
+            f.write("@read1\n")
+            f.write("CCCC" + breakpoints['TPR']['TPR_126_Met_WT'] + "GGGG\n")
+            f.write("+\n")
+            f.write("I" * (4 + len(breakpoints['TPR']['TPR_126_Met_WT']) + 4) + "\n")
+
+        counts = count_fusion_matches(
+            str(r2_fastq),
+            breakpoints,
+            domain_ends,
+            show_progress=False
+        )
+
+        assert counts.get('TPR_126_Met_WT', 0) == 1
+
+    def test_unmerged_counts_distinct_per_mate(self, tmp_path):
+        """Verify R1 and R2 unmerged counts are separate and distinct."""
+        breakpoints = {
+            'TPR': {
+                'TPR_126_Met_WT': 'CTGAAGGGGCGGGGGAGCATGAAA',
+                'TPR_129_Met_WT': 'AAGGGGCGGCATGGGAGCATGAAA',
+            }
+        }
+        domain_ends = {'TPR': 'GGGAGCATGAAA'}
+
+        # R1 has one breakpoint
+        r1_fastq = tmp_path / "sample_R1.unmerged.fastq.gz"
+        with gzip.open(r1_fastq, 'wt') as f:
+            f.write("@read1\n")
+            f.write("AAAA" + breakpoints['TPR']['TPR_126_Met_WT'] + "TTTT\n")
+            f.write("+\n")
+            f.write("I" * (4 + len(breakpoints['TPR']['TPR_126_Met_WT']) + 4) + "\n")
+
+        # R2 has a different breakpoint
+        r2_fastq = tmp_path / "sample_R2.unmerged.fastq.gz"
+        with gzip.open(r2_fastq, 'wt') as f:
+            f.write("@read1\n")
+            f.write("CCCC" + breakpoints['TPR']['TPR_129_Met_WT'] + "GGGG\n")
+            f.write("+\n")
+            f.write("I" * (4 + len(breakpoints['TPR']['TPR_129_Met_WT']) + 4) + "\n")
+
+        r1_counts = count_fusion_matches(
+            str(r1_fastq),
+            breakpoints,
+            domain_ends,
+            show_progress=False
+        )
+
+        r2_counts = count_fusion_matches(
+            str(r2_fastq),
+            breakpoints,
+            domain_ends,
+            show_progress=False
+        )
+
+        # R1 should only have TPR_126_Met_WT
+        assert r1_counts.get('TPR_126_Met_WT', 0) == 1
+        assert r1_counts.get('TPR_129_Met_WT', 0) == 0
+
+        # R2 should only have TPR_129_Met_WT
+        assert r2_counts.get('TPR_126_Met_WT', 0) == 0
+        assert r2_counts.get('TPR_129_Met_WT', 0) == 1
+
+    def test_empty_unmerged_file_handled_gracefully(self, tmp_path):
+        """Should handle empty unmerged FASTQ files without errors."""
+        breakpoints = {
+            'TPR': {
+                'TPR_126_Met_WT': 'CTGAAGGGGCGGGGGAGCATGAAA',
+            }
+        }
+        domain_ends = {'TPR': 'GGGAGCATGAAA'}
+
+        # Create empty gzipped FASTQ (just header, no reads)
+        empty_fastq = tmp_path / "empty.unmerged.fastq.gz"
+        with gzip.open(empty_fastq, 'wt') as f:
+            pass  # Empty file
+
+        counts = count_fusion_matches(
+            str(empty_fastq),
+            breakpoints,
+            domain_ends,
+            show_progress=False
+        )
+
+        # Should return empty counts, not raise error
+        assert counts == {}
+
+    def test_unmerged_file_with_no_matches(self, tmp_path):
+        """Should return empty counts when no breakpoints are found."""
+        breakpoints = {
+            'TPR': {
+                'TPR_126_Met_WT': 'CTGAAGGGGCGGGGGAGCATGAAA',
+            }
+        }
+        domain_ends = {'TPR': 'GGGAGCATGAAA'}
+
+        # Create FASTQ with random sequence (no breakpoint)
+        no_match_fastq = tmp_path / "no_match.unmerged.fastq.gz"
+        with gzip.open(no_match_fastq, 'wt') as f:
+            f.write("@read1\n")
+            f.write("ATGCATGCATGCATGCATGCATGCATGC\n")
+            f.write("+\n")
+            f.write("I" * 28 + "\n")
+
+        counts = count_fusion_matches(
+            str(no_match_fastq),
+            breakpoints,
+            domain_ends,
+            show_progress=False
+        )
+
+        assert counts == {}
+
+    def test_unmerged_r1_and_r2_same_fusion_detected_separately(self, tmp_path):
+        """Same fusion in R1 and R2 should be counted separately."""
+        breakpoints = {
+            'TPR': {
+                'TPR_126_Met_WT': 'CTGAAGGGGCGGGGGAGCATGAAA',
+            }
+        }
+        domain_ends = {'TPR': 'GGGAGCATGAAA'}
+
+        # Both R1 and R2 have the same breakpoint
+        r1_fastq = tmp_path / "sample_R1.unmerged.fastq.gz"
+        with gzip.open(r1_fastq, 'wt') as f:
+            f.write("@read1\n")
+            f.write("AAAA" + breakpoints['TPR']['TPR_126_Met_WT'] + "TTTT\n")
+            f.write("+\n")
+            f.write("I" * (4 + len(breakpoints['TPR']['TPR_126_Met_WT']) + 4) + "\n")
+
+        r2_fastq = tmp_path / "sample_R2.unmerged.fastq.gz"
+        with gzip.open(r2_fastq, 'wt') as f:
+            f.write("@read1\n")
+            f.write("CCCC" + breakpoints['TPR']['TPR_126_Met_WT'] + "GGGG\n")
+            f.write("+\n")
+            f.write("I" * (4 + len(breakpoints['TPR']['TPR_126_Met_WT']) + 4) + "\n")
+
+        r1_counts = count_fusion_matches(
+            str(r1_fastq),
+            breakpoints,
+            domain_ends,
+            show_progress=False
+        )
+
+        r2_counts = count_fusion_matches(
+            str(r2_fastq),
+            breakpoints,
+            domain_ends,
+            show_progress=False
+        )
+
+        # Both should detect the same fusion, but counts are separate
+        assert r1_counts.get('TPR_126_Met_WT', 0) == 1
+        assert r2_counts.get('TPR_126_Met_WT', 0) == 1
+
+        # Total would be 2 if combined, but they're kept separate
+        assert r1_counts.get('TPR_126_Met_WT', 0) + r2_counts.get('TPR_126_Met_WT', 0) == 2
+
+
+# =============================================================================
 # RUN TESTS
 # =============================================================================
 
