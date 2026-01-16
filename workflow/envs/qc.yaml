@@ -14,4 +14,4 @@ dependencies:
     # This registers them as MultiQC plugins via setuptools entry points
     # TODO: Update with actual Git repository URL once published
     # For production use, install from PyPI: fusilli-multiqc>=1.0.0
-    - git+https://github.com/user/fusilli-multiqc.git@main
+    - -e /Users/bartleby/Projects/fusilli-multiqc
