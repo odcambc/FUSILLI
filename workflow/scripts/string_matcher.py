@@ -64,6 +64,13 @@ try:
 except ImportError:
     HAS_PYFASTX = False
 
+# Try to import pyahocorasick for efficient multi-pattern matching
+try:
+    import ahocorasick
+    HAS_AHOCORASICK = True
+except ImportError:
+    HAS_AHOCORASICK = False
+
 
 # =============================================================================
 # FASTQ PARSING
@@ -253,6 +260,140 @@ def reverse_complement(seq: str) -> str:
     return seq.translate(comp)[::-1]
 
 
+# =============================================================================
+# AHO-CORASICK AUTOMATA BUILDERS
+# =============================================================================
+
+def build_domain_ends_automaton(domain_ends: dict[str, str]) -> "ahocorasick.Automaton | None":
+    """
+    Build Aho-Corasick automaton for domain end k-mers.
+
+    Returns:
+        Automaton mapping pattern -> domain_name, or None if pyahocorasick unavailable
+    """
+    if not HAS_AHOCORASICK:
+        return None
+
+    automaton = ahocorasick.Automaton()
+    for domain_name, end_kmer in domain_ends.items():
+        automaton.add_word(end_kmer, domain_name)
+    automaton.make_automaton()
+    return automaton
+
+
+def build_breakpoints_automaton(breakpoints: dict[str, dict]) -> "ahocorasick.Automaton | None":
+    """
+    Build Aho-Corasick automaton for all breakpoint sequences.
+
+    Returns:
+        Automaton mapping pattern -> (partner, fusion_id), or None if pyahocorasick unavailable
+    """
+    if not HAS_AHOCORASICK:
+        return None
+
+    automaton = ahocorasick.Automaton()
+    for partner, bp_map in breakpoints.items():
+        for fusion_id, bp_sequence in bp_map.items():
+            # Store both partner and fusion_id as tuple in the value
+            automaton.add_word(bp_sequence, (partner, fusion_id))
+    automaton.make_automaton()
+    return automaton
+
+
+def build_partner_breakpoints_automata(
+    breakpoints: dict[str, dict]
+) -> dict[str, "ahocorasick.Automaton"]:
+    """
+    Build separate Aho-Corasick automata for each partner's breakpoints.
+
+    Returns:
+        Dict mapping partner_name -> automaton, or empty dict if pyahocorasick unavailable
+    """
+    if not HAS_AHOCORASICK:
+        return {}
+
+    automata = {}
+    for partner, bp_map in breakpoints.items():
+        automaton = ahocorasick.Automaton()
+        for fusion_id, bp_sequence in bp_map.items():
+            automaton.add_word(bp_sequence, fusion_id)
+        automaton.make_automaton()
+        automata[partner] = automaton
+    return automata
+
+
+def build_unfused_kmers_automata(
+    unfused_kmers_by_len: dict[int, dict[str, list[str]]]
+) -> dict[int, "ahocorasick.Automaton"]:
+    """
+    Build Aho-Corasick automata for unfused k-mers, grouped by k-mer length.
+
+    Returns:
+        Dict mapping kmer_length -> automaton, or empty dict if pyahocorasick unavailable
+    """
+    if not HAS_AHOCORASICK:
+        return {}
+
+    automata = {}
+    for kmer_len, kmer_map in unfused_kmers_by_len.items():
+        automaton = ahocorasick.Automaton()
+        for kmer, seq_names in kmer_map.items():
+            # Store all sequence names that match this k-mer as a tuple (hashable)
+            automaton.add_word(kmer, tuple(sorted(seq_names)))
+        automaton.make_automaton()
+        automata[kmer_len] = automaton
+    return automata
+
+
+def find_matches_aho(
+    sequence: str,
+    automaton: "ahocorasick.Automaton"
+) -> set:
+    """
+    Find all pattern matches in sequence using Aho-Corasick.
+
+    Returns:
+        Set of matched values (domain names, fusion IDs, tuples, etc.)
+    """
+    if not HAS_AHOCORASICK or automaton is None:
+        return set()
+
+    matches = set()
+    for end_index, value in automaton.iter(sequence):
+        if isinstance(value, tuple):
+            # Handle tuples
+            if len(value) == 2 and isinstance(value[0], str) and isinstance(value[1], str):
+                # Breakpoint: (partner, fusion_id)
+                matches.add(value)
+            else:
+                # Unfused k-mers: tuple of sequence names
+                # Add the tuple itself, caller will handle unpacking
+                matches.add(value)
+        else:
+            # Single value (domain name, fusion_id, etc.)
+            matches.add(value)
+    return matches
+
+
+def get_reverse_complement_cached(sequence: str, cache: dict[str, str] | None = None) -> str:
+    """
+    Get reverse complement with memoization.
+
+    Args:
+        sequence: Input sequence
+        cache: Optional dictionary to cache results (typically per-read cache)
+
+    Returns:
+        Reverse complement of the sequence
+    """
+    if cache is None:
+        return reverse_complement(sequence)
+
+    if sequence not in cache:
+        cache[sequence] = reverse_complement(sequence)
+    return cache[sequence]
+
+
 def find_matches_in_read(
     sequence: str,
     domain_ends: dict[str, str],
@@ -262,6 +403,13 @@ def find_matches_in_read(
     rc_breakpoints: dict[str, dict] | None = None,
     return_orientation: bool = False,
     prefilter_fallback: bool = False,
+    rc_sequence: str | None = None,
+    domain_ends_automaton: "ahocorasick.Automaton | None" = None,
+    rc_domain_ends_automaton: "ahocorasick.Automaton | None" = None,
+    breakpoints_automaton: "ahocorasick.Automaton | None" = None,
+    rc_breakpoints_automaton: "ahocorasick.Automaton | None" = None,
+    partner_breakpoints_automata: dict[str, "ahocorasick.Automaton"] | None = None,
+    rc_partner_breakpoints_automata: dict[str, "ahocorasick.Automaton"] | None = None,
 ) -> list[str] | tuple[list[str], bool, bool]:
     """
     Find all fusion breakpoint matches in a single read.
@@ -269,7 +417,162 @@ def find_matches_in_read(
     Two-stage approach:
     1. Check if any domain end k-mer is present (fast pre-filter)
     2. If found, search for specific breakpoint sequences
+
+    Uses Aho-Corasick automata if available, falls back to original implementation otherwise.
+
+    Args:
+        rc_sequence: Pre-computed reverse complement of sequence (for memoization)
+        domain_ends_automaton: Aho-Corasick automaton for domain ends
+        rc_domain_ends_automaton: Aho-Corasick automaton for reverse complement domain ends
+        breakpoints_automaton: Aho-Corasick automaton for all breakpoints
+        rc_breakpoints_automaton: Aho-Corasick automaton for reverse complement breakpoints
+        partner_breakpoints_automata: Dict of partner-specific breakpoint automata
+        rc_partner_breakpoints_automata: Dict of partner-specific reverse complement breakpoint automata
     """
+    # Use Aho-Corasick if available and automata provided
+    use_aho = (
+        HAS_AHOCORASICK
+        and domain_ends_automaton is not None
+        and (partner_breakpoints_automata is not None or breakpoints_automaton is not None)
+    )
+
+    if use_aho:
+        return _find_matches_in_read_aho(
+            sequence=sequence,
+            domain_ends_automaton=domain_ends_automaton,
+            rc_domain_ends_automaton=rc_domain_ends_automaton,
+            breakpoints_automaton=breakpoints_automaton,
+            rc_breakpoints_automaton=rc_breakpoints_automaton,
+            partner_breakpoints_automata=partner_breakpoints_automata,
+            rc_partner_breakpoints_automata=rc_partner_breakpoints_automata,
+            orientation_check=orientation_check,
+            return_orientation=return_orientation,
+            prefilter_fallback=prefilter_fallback,
+            rc_sequence=rc_sequence,
+        )
+    else:
+        # Fallback to original implementation
+        return _find_matches_in_read_original(
+            sequence=sequence,
+            domain_ends=domain_ends,
+            breakpoints=breakpoints,
+            orientation_check=orientation_check,
+            rc_domain_ends=rc_domain_ends,
+            rc_breakpoints=rc_breakpoints,
+            return_orientation=return_orientation,
+            prefilter_fallback=prefilter_fallback,
+            rc_sequence=rc_sequence,
+        )
+
+
+def _find_matches_in_read_aho(
+    sequence: str,
+    domain_ends_automaton: "ahocorasick.Automaton",
+    breakpoints_automaton: "ahocorasick.Automaton | None" = None,
+    orientation_check: bool = False,
+    rc_domain_ends_automaton: "ahocorasick.Automaton | None" = None,
+    rc_breakpoints_automaton: "ahocorasick.Automaton | None" = None,
+    partner_breakpoints_automata: dict[str, "ahocorasick.Automaton"] | None = None,
+    rc_partner_breakpoints_automata: dict[str, "ahocorasick.Automaton"] | None = None,
+    return_orientation: bool = False,
+    prefilter_fallback: bool = False,
+    rc_sequence: str | None = None,
+) -> list[str] | tuple[list[str], bool, bool]:
+    """Aho-Corasick optimized version of find_matches_in_read."""
+    matches: list[str] = []
+    forward_hit = False
+    rc_hit = False
+
+    # Pre-filter: find matched domains using Aho-Corasick
+    matched_domains = find_matches_aho(sequence, domain_ends_automaton)
+
+    if orientation_check and rc_domain_ends_automaton:
+        if rc_sequence is None:
+            rc_seq = reverse_complement(sequence)
+        else:
+            rc_seq = rc_sequence
+        rc_matched_domains = find_matches_aho(rc_seq, rc_domain_ends_automaton)
+        matched_domains.update(rc_matched_domains)
+        if rc_matched_domains:
+            rc_hit = True
+
+    if matched_domains:
+        forward_hit = not rc_hit
+
+        # Search breakpoints for matched domains
+        if partner_breakpoints_automata:
+            # Use partner-specific automata for efficiency
+            for domain in matched_domains:
+                if domain in partner_breakpoints_automata:
+                    domain_matches = find_matches_aho(sequence, partner_breakpoints_automata[domain])
+                    matches.extend(domain_matches)
+                    if domain_matches:
+                        forward_hit = True
+
+                if orientation_check and rc_partner_breakpoints_automata and domain in rc_partner_breakpoints_automata:
+                    if rc_sequence is None:
+                        rc_seq = reverse_complement(sequence)
+                    else:
+                        rc_seq = rc_sequence
+                    rc_domain_matches = find_matches_aho(rc_seq, rc_partner_breakpoints_automata[domain])
+                    matches.extend(rc_domain_matches)
+                    if rc_domain_matches:
+                        rc_hit = True
+        elif breakpoints_automaton:
+            # Fallback: use global breakpoints automaton and filter by domain
+            all_matches = find_matches_aho(sequence, breakpoints_automaton)
+            for partner, fusion_id in all_matches:
+                if partner in matched_domains:
+                    matches.append(fusion_id)
+                    forward_hit = True
+
+            if orientation_check and rc_breakpoints_automaton:
+                if rc_sequence is None:
+                    rc_seq = reverse_complement(sequence)
+                else:
+                    rc_seq = rc_sequence
+                rc_all_matches = find_matches_aho(rc_seq, rc_breakpoints_automaton)
+                for partner, fusion_id in rc_all_matches:
+                    if partner in matched_domains:
+                        matches.append(fusion_id)
+                        rc_hit = True
+    else:
+        # Pre-filter failed
+        if prefilter_fallback:
+            # Search all breakpoints (slow but comprehensive)
+            if breakpoints_automaton:
+                all_matches = find_matches_aho(sequence, breakpoints_automaton)
+                matches.extend(fusion_id for _, fusion_id in all_matches)
+                if all_matches:
+                    forward_hit = True
+
+                if orientation_check and rc_breakpoints_automaton:
+                    if rc_sequence is None:
+                        rc_seq = reverse_complement(sequence)
+                    else:
+                        rc_seq = rc_sequence
+                    rc_all_matches = find_matches_aho(rc_seq, rc_breakpoints_automaton)
+                    matches.extend(fusion_id for _, fusion_id in rc_all_matches)
+                    if rc_all_matches:
+                        rc_hit = True
+
+    if return_orientation:
+        return matches, forward_hit, rc_hit
+    return matches
+
+
+def _find_matches_in_read_original(
+    sequence: str,
+    domain_ends: dict[str, str],
+    breakpoints: dict[str, dict],
+    orientation_check: bool = False,
+    rc_domain_ends: dict[str, str] | None = None,
+    rc_breakpoints: dict[str, dict] | None = None,
+    return_orientation: bool = False,
+    prefilter_fallback: bool = False,
+    rc_sequence: str | None = None,
+) -> list[str] | tuple[list[str], bool, bool]:
+    """Original implementation of find_matches_in_read (fallback)."""
     matches: list[str] = []
     forward_hit = False
     rc_hit = False
@@ -280,7 +583,10 @@ def find_matches_in_read(
             matched_domains.append(domain_name)
 
     if orientation_check and rc_domain_ends:
-        rc_seq = reverse_complement(sequence)
+        if rc_sequence is None:
+            rc_seq = reverse_complement(sequence)
+        else:
+            rc_seq = rc_sequence
         for domain_name, end_kmer in rc_domain_ends.items():
             if end_kmer in rc_seq:
                 matched_domains.append(domain_name)
@@ -297,7 +603,10 @@ def find_matches_in_read(
                         forward_hit = True
 
                 if orientation_check and rc_breakpoints:
-                    rc_seq = rc_seq if "rc_seq" in locals() else reverse_complement(sequence)
+                    if rc_sequence is None:
+                        rc_seq = reverse_complement(sequence)
+                    else:
+                        rc_seq = rc_sequence
                     for fusion_id, bp_sequence in rc_breakpoints.get(domain, {}).items():
                         if bp_sequence in rc_seq:
                             matches.append(fusion_id)
@@ -317,7 +626,10 @@ def find_matches_in_read(
                 forward_hit = True
 
         if orientation_check and rc_breakpoints:
-            rc_seq = rc_seq if "rc_seq" in locals() else reverse_complement(sequence)
+            if rc_sequence is None:
+                rc_seq = reverse_complement(sequence)
+            else:
+                rc_seq = rc_sequence
             for fusion_id, bp_sequence in rc_breakpoints.get(domain, {}).items():
                 if bp_sequence in rc_seq:
                     matches.append(fusion_id)
@@ -332,13 +644,100 @@ def find_unfused_matches_in_read(
     sequence: str,
     unfused_kmers_by_len: dict[int, dict[str, list[str]]],
     orientation_check: bool = False,
-    return_orientation: bool = False
+    return_orientation: bool = False,
+    rc_sequence: str | None = None,
+    unfused_automata: dict[int, "ahocorasick.Automaton"] | None = None,
 ) -> set[str] | tuple[set[str], bool, bool]:
     """
     Find unfused sequence matches in a single read.
 
     Returns a set of unfused sequence names with at least one k-mer hit.
+
+    Uses Aho-Corasick automata if available, falls back to original implementation otherwise.
+
+    Args:
+        rc_sequence: Pre-computed reverse complement of sequence (for memoization)
+        unfused_automata: Dict of Aho-Corasick automata for unfused k-mers by length
     """
+    # Use Aho-Corasick if available and automata provided
+    use_aho = HAS_AHOCORASICK and unfused_automata is not None
+
+    if use_aho:
+        return _find_unfused_matches_in_read_aho(
+            sequence=sequence,
+            unfused_automata=unfused_automata,
+            orientation_check=orientation_check,
+            return_orientation=return_orientation,
+            rc_sequence=rc_sequence,
+        )
+    else:
+        # Fallback to original implementation
+        return _find_unfused_matches_in_read_original(
+            sequence=sequence,
+            unfused_kmers_by_len=unfused_kmers_by_len,
+            orientation_check=orientation_check,
+            return_orientation=return_orientation,
+            rc_sequence=rc_sequence,
+        )
+
+
+def _find_unfused_matches_in_read_aho(
+    sequence: str,
+    unfused_automata: dict[int, "ahocorasick.Automaton"],
+    orientation_check: bool = False,
+    return_orientation: bool = False,
+    rc_sequence: str | None = None,
+) -> set[str] | tuple[set[str], bool, bool]:
+    """Aho-Corasick optimized version of find_unfused_matches_in_read."""
+    matches: set[str] = set()
+    forward_hit = False
+    rc_hit = False
+
+    if not unfused_automata:
+        if return_orientation:
+            return matches, forward_hit, rc_hit
+        return matches
+
+    sequences_to_check = [(sequence, False)]
+    if orientation_check:
+        if rc_sequence is None:
+            sequences_to_check.append((reverse_complement(sequence), True))
+        else:
+            sequences_to_check.append((rc_sequence, True))
+
+    for seq, is_rc in sequences_to_check:
+        for kmer_len, automaton in unfused_automata.items():
+            if len(seq) < kmer_len:
+                continue
+            # Use Aho-Corasick to find all matching k-mers in a single pass
+            kmer_matches = find_matches_aho(seq, automaton)
+            if kmer_matches:
+                # kmer_matches contains tuples of sequence names
+                for seq_names_tuple in kmer_matches:
+                    if isinstance(seq_names_tuple, tuple):
+                        # Unpack tuple of sequence names
+                        matches.update(seq_names_tuple)
+                    else:
+                        # Single sequence name (shouldn't happen but handle it)
+                        matches.add(seq_names_tuple)
+                if is_rc:
+                    rc_hit = True
+                else:
+                    forward_hit = True
+
+    if return_orientation:
+        return matches, forward_hit, rc_hit
+    return matches
+
+
+def _find_unfused_matches_in_read_original(
+    sequence: str,
+    unfused_kmers_by_len: dict[int, dict[str, list[str]]],
+    orientation_check: bool = False,
+    return_orientation: bool = False,
+    rc_sequence: str | None = None,
+) -> set[str] | tuple[set[str], bool, bool]:
+    """Original implementation of find_unfused_matches_in_read (fallback)."""
     matches: set[str] = set()
     forward_hit = False
     rc_hit = False
@@ -350,7 +749,10 @@ def find_unfused_matches_in_read(
 
     sequences_to_check = [(sequence, False)]
     if orientation_check:
-        sequences_to_check.append((reverse_complement(sequence), True))
+        if rc_sequence is None:
+            sequences_to_check.append((reverse_complement(sequence), True))
+        else:
+            sequences_to_check.append((rc_sequence, True))
 
     for seq, is_rc in sequences_to_check:
         for kmer_len, kmer_map in unfused_kmers_by_len.items():
@@ -366,9 +768,6 @@ def find_unfused_matches_in_read(
                     else:
                         forward_hit = True
 
-        # If we've matched everything possible in this orientation, continue
-        # to allow rc matches to contribute orientation metrics.
-
     if return_orientation:
         return matches, forward_hit, rc_hit
     return matches
@@ -380,13 +779,90 @@ def find_partner_hits(
     linker_sequence: str = "",
     orientation_check: bool = False,
     rc_domain_ends: dict[str, str] | None = None,
+    rc_sequence: str | None = None,
+    domain_ends_automaton: "ahocorasick.Automaton | None" = None,
+    rc_domain_ends_automaton: "ahocorasick.Automaton | None" = None,
 ) -> tuple[set[str], set[str]]:
     """
     Find partner end k-mer hits, and partner+linker heuristic hits.
 
     Returns:
         (partner_end_hits, partner_linker_hits)
+
+    Uses Aho-Corasick automata if available, falls back to original implementation otherwise.
+
+    Args:
+        rc_sequence: Pre-computed reverse complement of sequence (for memoization)
+        domain_ends_automaton: Aho-Corasick automaton for domain ends
+        rc_domain_ends_automaton: Aho-Corasick automaton for reverse complement domain ends
     """
+    # Use Aho-Corasick if available and automata provided
+    use_aho = HAS_AHOCORASICK and domain_ends_automaton is not None
+
+    if use_aho:
+        return _find_partner_hits_aho(
+            sequence=sequence,
+            domain_ends_automaton=domain_ends_automaton,
+            rc_domain_ends_automaton=rc_domain_ends_automaton,
+            linker_sequence=linker_sequence,
+            orientation_check=orientation_check,
+            rc_sequence=rc_sequence,
+        )
+    else:
+        # Fallback to original implementation
+        return _find_partner_hits_original(
+            sequence=sequence,
+            domain_ends=domain_ends,
+            rc_domain_ends=rc_domain_ends,
+            linker_sequence=linker_sequence,
+            orientation_check=orientation_check,
+            rc_sequence=rc_sequence,
+        )
+
+
+def _find_partner_hits_aho(
+    sequence: str,
+    domain_ends_automaton: "ahocorasick.Automaton",
+    linker_sequence: str = "",
+    orientation_check: bool = False,
+    rc_domain_ends_automaton: "ahocorasick.Automaton | None" = None,
+    rc_sequence: str | None = None,
+) -> tuple[set[str], set[str]]:
+    """Aho-Corasick optimized version of find_partner_hits."""
+    partner_hits: set[str] = set()
+    partner_linker_hits: set[str] = set()
+
+    # Find partner hits using Aho-Corasick
+    matched_partners = find_matches_aho(sequence, domain_ends_automaton)
+    linker_in_forward = bool(linker_sequence) and linker_sequence in sequence
+
+    partner_hits.update(matched_partners)
+    if linker_in_forward:
+        partner_linker_hits.update(matched_partners)
+
+    if orientation_check and rc_domain_ends_automaton:
+        if rc_sequence is None:
+            rc_seq = reverse_complement(sequence)
+        else:
+            rc_seq = rc_sequence
+        linker_in_rc = bool(linker_sequence) and linker_sequence in rc_seq
+        rc_matched_partners = find_matches_aho(rc_seq, rc_domain_ends_automaton)
+        partner_hits.update(rc_matched_partners)
+        if linker_in_rc:
+            partner_linker_hits.update(rc_matched_partners)
+
+    return partner_hits, partner_linker_hits
+
+
+def _find_partner_hits_original(
+    sequence: str,
+    domain_ends: dict[str, str],
+    linker_sequence: str = "",
+    orientation_check: bool = False,
+    rc_domain_ends: dict[str, str] | None = None,
+    rc_sequence: str | None = None,
+) -> tuple[set[str], set[str]]:
+    """Original implementation of find_partner_hits (fallback)."""
     partner_hits: set[str] = set()
     partner_linker_hits: set[str] = set()
 
@@ -398,7 +874,10 @@ def find_partner_hits(
                 partner_linker_hits.add(partner_name)
 
     if orientation_check and rc_domain_ends:
-        rc_seq = reverse_complement(sequence)
+        if rc_sequence is None:
+            rc_seq = reverse_complement(sequence)
+        else:
+            rc_seq = rc_sequence
         linker_in_rc = bool(linker_sequence) and linker_sequence in rc_seq
         for partner_name, end_kmer in rc_domain_ends.items():
             if end_kmer in rc_seq:
@@ -452,6 +931,30 @@ def count_fusion_matches(
             for partner, bp_dict in breakpoints.items()
         }
 
+    # Build Aho-Corasick automata if available
+    domain_ends_automaton = None
+    rc_domain_ends_automaton = None
+    breakpoints_automaton = None
+    rc_breakpoints_automaton = None
+    partner_breakpoints_automata = None
+    rc_partner_breakpoints_automata = None
+
+    if HAS_AHOCORASICK:
+        domain_ends_automaton = build_domain_ends_automaton(domain_ends)
+        if orientation_check and rc_domain_ends:
+            rc_domain_ends_automaton = build_domain_ends_automaton(rc_domain_ends)
+        breakpoints_automaton = build_breakpoints_automaton(breakpoints)
+        if orientation_check and rc_breakpoints:
+            rc_breakpoints_automaton = build_breakpoints_automaton(rc_breakpoints)
+        partner_breakpoints_automata = build_partner_breakpoints_automata(breakpoints)
+        if orientation_check and rc_breakpoints:
+            rc_partner_breakpoints_automata = build_partner_breakpoints_automata(rc_breakpoints)
+    elif logger:
+        logger.warning(
+            "pyahocorasick not available - using slower fallback implementation. "
+            "Install pyahocorasick for better performance: conda install -c conda-forge pyahocorasick"
+        )
+
     progress = ProgressReporter(
         total=estimated_total,
         desc="Matching reads",
@@ -467,6 +970,11 @@ def count_fusion_matches(
         read_count += 1
         metrics["reads_processed"] = read_count
 
+        # Compute reverse complement once per read if orientation_check is enabled
+        rc_seq = None
+        if orientation_check:
+            rc_seq = reverse_complement(seq)
+
         matches, f_hit, rc_hit = find_matches_in_read(
             seq,
             domain_ends,
@@ -476,6 +984,13 @@ def count_fusion_matches(
             rc_breakpoints=rc_breakpoints,
             return_orientation=True,
             prefilter_fallback=prefilter_fallback,
+            rc_sequence=rc_seq,
+            domain_ends_automaton=domain_ends_automaton,
+            rc_domain_ends_automaton=rc_domain_ends_automaton,
+            breakpoints_automaton=breakpoints_automaton,
+            rc_breakpoints_automaton=rc_breakpoints_automaton,
+            partner_breakpoints_automata=partner_breakpoints_automata,
+            rc_partner_breakpoints_automata=rc_partner_breakpoints_automata,
         )
 
         if matches:
@@ -558,6 +1073,33 @@ def count_all_matches(
             for partner, bp_dict in breakpoints.items()
         }
 
+    # Build Aho-Corasick automata if available
+    domain_ends_automaton = None
+    rc_domain_ends_automaton = None
+    breakpoints_automaton = None
+    rc_breakpoints_automaton = None
+    partner_breakpoints_automata = None
+    rc_partner_breakpoints_automata = None
+    unfused_automata = None
+
+    if HAS_AHOCORASICK:
+        domain_ends_automaton = build_domain_ends_automaton(domain_ends)
+        if orientation_check and rc_domain_ends:
+            rc_domain_ends_automaton = build_domain_ends_automaton(rc_domain_ends)
+        breakpoints_automaton = build_breakpoints_automaton(breakpoints)
+        if orientation_check and rc_breakpoints:
+            rc_breakpoints_automaton = build_breakpoints_automaton(rc_breakpoints)
+        partner_breakpoints_automata = build_partner_breakpoints_automata(breakpoints)
+        if orientation_check and rc_breakpoints:
+            rc_partner_breakpoints_automata = build_partner_breakpoints_automata(rc_breakpoints)
+        if unfused_kmers_by_len:
+            unfused_automata = build_unfused_kmers_automata(unfused_kmers_by_len)
+    elif logger:
+        logger.warning(
+            "pyahocorasick not available - using slower fallback implementation. "
+            "Install pyahocorasick for better performance: conda install -c conda-forge pyahocorasick"
+        )
+
     progress = ProgressReporter(
         total=estimated_total,
         desc="Matching reads",
@@ -574,6 +1116,11 @@ def count_all_matches(
         read_count += 1
         metrics["reads_processed"] = read_count
 
+        # Compute reverse complement once per read if orientation_check is enabled
+        rc_seq = None
+        if orientation_check:
+            rc_seq = reverse_complement(seq)
+
         matches, f_hit, rc_hit = find_matches_in_read(
             seq,
             domain_ends,
@@ -583,6 +1130,13 @@ def count_all_matches(
             rc_breakpoints=rc_breakpoints,
             return_orientation=True,
             prefilter_fallback=prefilter_fallback,
+            rc_sequence=rc_seq,
+            domain_ends_automaton=domain_ends_automaton,
+            rc_domain_ends_automaton=rc_domain_ends_automaton,
+            breakpoints_automaton=breakpoints_automaton,
+            rc_breakpoints_automaton=rc_breakpoints_automaton,
+            partner_breakpoints_automata=partner_breakpoints_automata,
+            rc_partner_breakpoints_automata=rc_partner_breakpoints_automata,
         )
 
         if matches:
@@ -600,6 +1154,9 @@ def count_all_matches(
             linker_sequence=linker_sequence,
             orientation_check=orientation_check,
             rc_domain_ends=rc_domain_ends,
+            rc_sequence=rc_seq,
+            domain_ends_automaton=domain_ends_automaton,
+            rc_domain_ends_automaton=rc_domain_ends_automaton,
         )
         if partner_hits:
             metrics["partner_end_reads"] += 1
@@ -615,7 +1172,9 @@ def count_all_matches(
                 seq,
                 unfused_kmers_by_len,
                 orientation_check=orientation_check,
-                return_orientation=True
+                return_orientation=True,
+                rc_sequence=rc_seq,
+                unfused_automata=unfused_automata,
             )
             if unfused_matches:
                 unfused_match_count += len(unfused_matches)

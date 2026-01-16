@@ -16,3 +16,4 @@ dependencies:
   - samtools
   - pyfastx
   - cigar
+  - pyahocorasick
