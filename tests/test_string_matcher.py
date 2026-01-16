@@ -30,6 +30,7 @@ from string_matcher import (
     build_unfused_kmers_automata,
     find_matches_aho,
     reverse_complement,
+    get_reverse_complement_cached,
     HAS_AHOCORASICK,
 )
 

@@ -12,5 +12,6 @@ dependencies:
   - pip:
     # Install FUSILLI custom MultiQC modules as a package
     # This registers them as MultiQC plugins via setuptools entry points
-    # Path is relative to workflow/ directory (where Snakefile is located)
-    - -e ../fusilli-multiqc
+    # Path is relative to this conda environment file (workflow/envs/qc.yaml)
+    # From workflow/envs/ -> ../../ goes to repo root -> fusilli-multiqc/
+    - -e ../../fusilli-multiqc

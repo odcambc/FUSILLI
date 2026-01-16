@@ -7,7 +7,6 @@ def get_multiqc_inputs(wildcards):
             read=["R1", "R2"],
         )
     )
-    inputs.append("stats/{experiment}/fastqc")
     inputs.extend(expand("stats/{{experiment}}/merge/{sample}.ihist", sample=SAMPLES))
     inputs.extend(expand("stats/{{experiment}}/trim/{sample}.trim.stats.txt", sample=SAMPLES))
     inputs.extend(expand("stats/{{experiment}}/trim/{sample}.qhist", sample=SAMPLES))

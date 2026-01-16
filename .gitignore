@@ -10,3 +10,9 @@ test/
 .vscode/
 *.pyc
 .mypy_cache
+
+# fusilli-multiqc build artifacts
+fusilli-multiqc/build/
+fusilli-multiqc/dist/
+fusilli-multiqc/*.egg-info/
+fusilli-multiqc/.eggs/
