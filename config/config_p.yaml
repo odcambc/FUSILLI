@@ -1,0 +1,67 @@
+experiment: 'kinase_fusions_run_p'
+
+data_dir: '/Volumes/Seagate-Expansion-Drive/p'
+ref_dir: 'references'
+
+samples_file: 'config/samples_p.csv'
+
+fusion_library:
+  anchor:
+    name: 'Met_WT'
+    position: 'downstream'
+    truncated_component: 'anchor'   # CRITICAL: anchor (Met_WT) is truncated, not partners
+  # Use the 6bp linker (matches fusion_breakpoint_sequences.csv)
+  linker_sequence: 'GGGAGC'
+  partners_file: 'config/fusion_partners.csv'
+  # Optional: exon partners (only used when explicitly enabled)
+  exon_partners_file: 'config/kinases_exons.csv'
+  sequences_file: 'kinase_sequences_hov.fasta'
+  unfused_sequences_file: 'config/kinase_unfused.csv'
+  # Optional: variant anchors for control fusions
+  # variant_anchors:
+  #   - name: 'Met_WT'
+  #     all_partners: true
+  #     description: 'Control fusions with Met_WT against all partners'
+  #   - name: 'Met_Variant'
+  #     partners: ['TPR']
+  #     description: 'Control fusions with a specific partner'
+
+detection:
+  method: 'string'
+  # IMPORTANT: window=13 matches fusion_breakpoint_sequences.csv (26 nt sequences)
+  breakpoint_window: 13
+  maintain_frame: true
+  kmer_size: 15
+  orientation_check: false
+  unmerged_detection: true
+  # Optional: fallback to full breakpoint scan when pre-filter misses (debug only)
+  # prefilter_fallback: false
+
+sequencing:
+  paired: true
+  min_quality: 30
+
+preprocessing:
+  adapters: 'resources/adapters.fa'
+  contaminants:
+    - 'resources/sequencing_artifacts.fa.gz'
+    - 'resources/phix174_ill.ref.fa.gz'
+
+qc:
+  run_qc: true
+  baseline_condition: 'pBabe'
+
+mem_fastqc: 4000
+
+pipeline:
+  show_progress: true
+  progress_interval: 1
+
+resources:
+  memory_mb: 16000
+  threads: 16
+
+quick:
+  enabled: false
+
+prefilter_fallback: false

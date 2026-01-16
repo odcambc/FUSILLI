@@ -1,61 +1,56 @@
-# =============================================================================
-# FUSION PARTNERS DEFINITION
-# =============================================================================
-# This file defines the fusion partner domains for breakpoint detection.
-#
-# COLUMNS:
-#   partner_name    - Unique identifier matching sequence name in FASTA file
-#   sequence_length - Length of the coding sequence in nucleotides
-#                     (used to verify full-length detection)
-#   include         - Whether to include this partner in analysis (true/false)
-#   description     - Human-readable description (optional, for documentation)
-#
-# NOTES:
-# - The anchor domain (e.g., Met_WT) should NOT be listed here
-# - Sequence lengths should match the actual sequences in the FASTA file
-# - Set 'include: false' to temporarily exclude a partner without deleting it
-#
-# =============================================================================
+# =============================================================================,,,
+# FUSION PARTNERS DEFINITION,,,
+# =============================================================================,,,
+# This file defines the fusion partner domains for breakpoint detection.,,,
+#,,,
+# COLUMNS:,,,
+#   partner_name    - Unique identifier matching sequence name in FASTA file,,,
+#   sequence_length - Length of the coding sequence in nucleotides,,,
+#                     (used to verify full-length detection),,,
+#   include         - Whether to include this partner in analysis (true/false),,,
+#   description     - Human-readable description (optional, for documentation),,
+#,,,
+# NOTES:,,,
+# - The anchor domain (e.g., Met_WT) should NOT be listed here,,
+# - Sequence lengths should match the actual sequences in the FASTA file,,,
+# - Set 'include: false' to temporarily exclude a partner without deleting it,,,
+#,,,
+# =============================================================================,,,
 partner_name,sequence_length,include,description
-TPR,426,true,Translocated promoter region - TPR-MET fusion partner
-CCDC6,303,true,Coiled-coil domain containing 6 - RET fusion partner
-EML4,2241,true,Echinoderm microtubule-associated protein-like 4 - ALK fusion partner
-KIF5B,2760,true,Kinesin family member 5B - RET/ALK fusion partner
-BCR,3321,true,BCR activator of RhoGEF and GTPase - BCR-ABL partner
-ETV6,1008,true,ETS variant transcription factor 6 - various fusions
-CAPZA2,585,true,Capping actin protein of muscle Z-line subunit alpha 2
-C8orf34,216,true,Chromosome 8 open reading frame 34
-BAIAP2L1,954,true,BAR/IMD domain containing adaptor protein 2 like 1
-OXR1,1956,true,Oxidation resistance 1
-ST7,1185,true,Suppressor of tumorigenicity 7
-TFG,579,true,TRK-fused gene - NTRK fusion partner
-ATIC,687,true,5-aminoimidazole-4-carboxamide ribonucleotide formyltransferase
-TRIM27,747,true,Tripartite motif containing 27 - RET fusion partner
-MSN,1344,true,Moesin
-QKI,933,true,QKI KH domain containing RNA binding - MYB fusion partner
-FAM131B,150,true,Family with sequence similarity 131 member B
-MKRN1,183,true,Makorin ring finger protein 1
-LSM14A,1368,true,LSM14A mRNA processing body assembly factor
-DNAJB1,210,true,DnaJ heat shock protein family member B1 - PRKACA fusion partner
-TADA2A,1146,true,Transcriptional adaptor 2A
-SRGAP3,1434,true,SLIT-ROBO Rho GTPase activating protein 3
-ACTB,363,true,Beta-actin - control/housekeeping
-DDX5,1842,true,DEAD-box helicase 5
-KLK2,204,true,Kallikrein related peptidase 2
-CENPK,288,true,Centromere protein K
-CRTC3,132,true,CREB regulated transcription coactivator 3
-ZC3H7B,1137,true,Zinc finger CCCH-type containing 7B
-YWHAE,714,true,Tyrosine 3-monooxygenase activation protein epsilon
-CIB81,243,true,Calcium and integrin binding family member
-PDZ,261,true,PDZ domain (synthetic)
-SH2,294,true,SH2 domain (synthetic)
-LOV2,432,true,LOV2 domain (optogenetic)
-Dmrb,324,true,Dimerization domain
-GCN4,843,true,GCN4 leucine zipper
-TRIM24,1530,true,Tripartite motif containing 24
-STRN,411,true,Striatin - RAF fusion partner
-ARID1A,1137,true,AT-rich interaction domain 1A
-PRCC,468,true,Proline rich mitotic checkpoint control factor - TFE3 fusion partner
-CBFA2T3,1470,true,CBFA2/RUNX1 partner transcriptional co-repressor 3
-COL1A1,471,true,Collagen type I alpha 1 chain - PDGFB fusion partner
-
+TPR,426,TRUE,Translocated promoter region - TPR-MET fusion partner
+CCDC6,303,TRUE,Coiled-coil domain containing 6 - RET fusion partner
+CAPZA2,585,TRUE,Capping actin protein of muscle Z-line subunit alpha 2
+C8orf34,216,TRUE,Chromosome 8 open reading frame 34
+BAIAP2L1,954,TRUE,BAR/IMD domain containing adaptor protein 2 like 1
+OXR1,1956,TRUE,Oxidation resistance 1
+ST7,1185,TRUE,Suppressor of tumorigenicity 7
+TFG,579,TRUE,TRK-fused gene - NTRK fusion partner
+ATIC,687,TRUE,5-aminoimidazole-4-carboxamide ribonucleotide formyltransferase
+TRIM27,747,TRUE,Tripartite motif containing 27 - RET fusion partner
+MSN,1344,TRUE,Moesin
+QKI,933,TRUE,QKI KH domain containing RNA binding - MYB fusion partner
+FAM131B,150,TRUE,Family with sequence similarity 131 member B
+MKRN1,183,TRUE,Makorin ring finger protein 1
+LSM14A,1368,TRUE,LSM14A mRNA processing body assembly factor
+DNAJB1,210,TRUE,DnaJ heat shock protein family member B1 - PRKACA fusion partner
+TADA2A,1146,TRUE,Transcriptional adaptor 2A
+SRGAP3,1434,TRUE,SLIT-ROBO Rho GTPase activating protein 3
+ACTB,363,TRUE,Beta-actin - control/housekeeping
+DDX5,1842,TRUE,DEAD-box helicase 5
+KLK2,204,TRUE,Kallikrein related peptidase 2
+CENPK,288,TRUE,Centromere protein K
+CRTC3,132,TRUE,CREB regulated transcription coactivator 3
+ZC3H7B,1137,TRUE,Zinc finger CCCH-type containing 7B
+YWHAE,714,TRUE,Tyrosine 3-monooxygenase activation protein epsilon
+CIB81,243,TRUE,Calcium and integrin binding family member
+PDZ,261,TRUE,PDZ domain (synthetic)
+SH2,294,TRUE,SH2 domain (synthetic)
+LOV2,432,TRUE,LOV2 domain (optogenetic)
+Dmrb,324,TRUE,Dimerization domain
+GCN4,843,TRUE,GCN4 leucine zipper
+TRIM24,1530,TRUE,Tripartite motif containing 24
+STRN,411,TRUE,Striatin - RAF fusion partner
+ARID1A,1137,TRUE,AT-rich interaction domain 1A
+PRCC,468,TRUE,Proline rich mitotic checkpoint control factor - TFE3 fusion partner
+CBFA2T3,1470,TRUE,CBFA2/RUNX1 partner transcriptional co-repressor 3
+COL1A1,471,TRUE,Collagen type I alpha 1 chain - PDGFB fusion partner

@@ -1,2 +1,3 @@
-﻿domain
-KrasG12C
+sequence_name,sequence_length,include,exclude_overlap,description
+KrasG12C,567,true,false,Unfused KrasG12C control sequence
+TPR-Met_deltaEx14_stop,45,true,false,TPR-Met fusion with exon 14 deletion for control

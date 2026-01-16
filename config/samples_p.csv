@@ -1,0 +1,11 @@
+sample,condition,replicate,file
+Baf3_R1,Baf3,1,Baf3_R1_S7_L001
+Baf3_R2,Baf3,2,Baf3_R2_S8_L001
+HEK_R1,HEK,1,HEK_R1_S9_L001
+HEK_R2,HEK,2,HEK_R2_S10_L001
+Landingpad_R1,Landingpad,1,Landingpad_R1_S5_L001
+Landingpad_R2,Landingpad,2,Landingpad_R2_S6_L001
+P0002_R1,P0002,1,P0002_R1_S1_L001
+P0002_R2,P0002,2,P0002_R2_S2_L001
+pBabe_R1,pBabe,1,pBabe_R1_S3_L001
+pBabe_R2,pBabe,2,pBabe_R2_S4_L001
