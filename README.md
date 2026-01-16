@@ -147,6 +147,7 @@ detection:
   breakpoint_window: 12      # nt on each side of breakpoint
   maintain_frame: true       # Only in-frame breakpoints
   kmer_size: 15              # K-mer size for pre-filtering
+  unmerged_detection: false # Also scan unmerged R1/R2 reads separately (optional)
 
 # Sequencing settings
 sequencing:
@@ -196,13 +197,17 @@ results/{experiment}/
 │   ├── breakpoint_sequences.csv   # All possible breakpoint k-mers
 │   └── domain_ends.csv            # Partner 3' ends for pre-filtering
 ├── counts/
-│   └── {sample}.fusion_counts.csv # Per-sample fusion counts
+│   ├── {sample}.fusion_counts.csv # Per-sample fusion counts (merged reads)
+│   ├── {sample}.R1.unmerged_fusion_counts.csv  # R1 unmerged counts (if enabled)
+│   └── {sample}.R2.unmerged_fusion_counts.csv  # R2 unmerged counts (if enabled)
 ├── repro/                         # Reproducibility metadata
 │   ├── metadata.json              # Machine-readable metadata
 │   ├── metadata.txt               # Human-readable metadata
 │   ├── conda-env.yaml             # Conda environment export (if available)
 │   └── pip-freeze.txt             # Pip freeze output (if available)
-└── fusion_counts_summary.csv      # Aggregated counts matrix
+├── fusion_counts_summary.csv      # Aggregated counts matrix (merged reads)
+├── unmerged_counts_summary.csv    # Aggregated unmerged counts (if enabled)
+└── unmerged_partner_counts_summary.csv  # Aggregated unmerged partner counts (if enabled)
 
 stats/{experiment}/
 ├── {experiment}_multiqc.html       # MultiQC report
@@ -331,6 +336,38 @@ python workflow/scripts/string_matcher.py \
     --output counts.csv \
     --progress
 ```
+
+### Unmerged Read Processing
+
+By default, FUSILLI processes merged (error-corrected) reads for fusion detection. However, you can also enable processing of unmerged reads separately. This is useful when:
+
+- You want to capture fusions that may be missed in merged reads
+- You need to analyze R1 and R2 reads independently
+- You want to compare detection rates between merged and unmerged reads
+
+To enable unmerged read processing, set in your `config/config.yaml`:
+
+```yaml
+detection:
+  unmerged_detection: true  # Enable processing of unmerged R1/R2 reads
+```
+
+When enabled, the pipeline will:
+
+1. **Process R1 and R2 separately**: Each unmerged mate is processed independently using the same string matching algorithm as merged reads
+2. **Keep counts distinct**: Unmerged counts are stored in separate files with the naming pattern:
+   - `{sample}.R1.unmerged_fusion_counts.csv` - Counts from R1 unmerged reads
+   - `{sample}.R2.unmerged_fusion_counts.csv` - Counts from R2 unmerged reads
+3. **Generate separate summaries**: Aggregated unmerged counts are written to:
+   - `unmerged_counts_summary.csv` - Combined R1 and R2 counts per sample
+   - `unmerged_partner_counts_summary.csv` - Partner-level unmerged counts
+
+**Important notes:**
+
+- Unmerged counts are **always kept separate** from merged counts - they are never combined
+- Empty unmerged files (when all reads merge successfully) are handled gracefully
+- The same detection parameters (`breakpoint_window`, `kmer_size`, etc.) are used for both merged and unmerged detection
+- Processing unmerged reads increases computational time and storage requirements
 
 ### Performance Tuning
 
