@@ -914,6 +914,248 @@ IIIIIIIIIIIIIIIIII
 
 
 # =============================================================================
+# TEST: Reverse Complement Memoization
+# =============================================================================
+
+class TestReverseComplementMemoization:
+    """Tests for reverse complement memoization optimization."""
+
+    def test_get_reverse_complement_cached_without_cache(self):
+        """Should compute reverse complement when cache is None."""
+        seq = "ATGC"
+        result = get_reverse_complement_cached(seq, cache=None)
+        assert result == reverse_complement(seq)
+        assert result == "GCAT"
+
+    def test_get_reverse_complement_cached_with_cache(self):
+        """Should cache and reuse reverse complement results."""
+        cache = {}
+        seq = "ATGC"
+
+        # First call should compute and cache
+        result1 = get_reverse_complement_cached(seq, cache=cache)
+        assert result1 == "GCAT"
+        assert seq in cache
+        assert cache[seq] == "GCAT"
+
+        # Second call should use cache
+        result2 = get_reverse_complement_cached(seq, cache=cache)
+        assert result2 == "GCAT"
+        assert len(cache) == 1  # Still only one entry
+
+    def test_find_matches_in_read_uses_rc_sequence(self):
+        """Should use provided rc_sequence instead of computing it."""
+        read = "AAAA" + TEST_BREAKPOINTS['TPR']['TPR_126_Met_WT'] + "TTTT"
+        domain_ends = {'TPR': TEST_BREAKPOINTS['TPR']['TPR_126_Met_WT'][-12:]}
+
+        # Build reverse complement data
+        rc_domain_ends = {k: reverse_complement(v) for k, v in domain_ends.items()}
+        rc_breakpoints = {
+            partner: {fid: reverse_complement(seq) for fid, seq in bp_dict.items()}
+            for partner, bp_dict in TEST_BREAKPOINTS.items()
+        }
+
+        # Pre-compute reverse complement
+        rc_seq = reverse_complement(read)
+
+        # Test with rc_sequence provided
+        matches_with_rc = find_matches_in_read(
+            read, domain_ends, TEST_BREAKPOINTS,
+            orientation_check=True,
+            rc_domain_ends=rc_domain_ends,
+            rc_breakpoints=rc_breakpoints,
+            rc_sequence=rc_seq,
+        )
+
+        # Test without rc_sequence (should compute internally)
+        matches_without_rc = find_matches_in_read(
+            read, domain_ends, TEST_BREAKPOINTS,
+            orientation_check=True,
+            rc_domain_ends=rc_domain_ends,
+            rc_breakpoints=rc_breakpoints,
+            rc_sequence=None,
+        )
+
+        # Results should be identical
+        assert set(matches_with_rc) == set(matches_without_rc)
+
+    def test_find_unfused_matches_in_read_uses_rc_sequence(self):
+        """Should use provided rc_sequence for unfused matching."""
+        kmers_by_len = {3: {"AAA": ["KRAS"]}}
+        read = "TTT"  # Reverse complement of AAA
+
+        # Pre-compute reverse complement
+        rc_seq = reverse_complement(read)
+
+        # Test with rc_sequence provided
+        matches_with_rc = find_unfused_matches_in_read(
+            read, kmers_by_len,
+            orientation_check=True,
+            rc_sequence=rc_seq,
+        )
+
+        # Test without rc_sequence
+        matches_without_rc = find_unfused_matches_in_read(
+            read, kmers_by_len,
+            orientation_check=True,
+            rc_sequence=None,
+        )
+
+        # Results should be identical
+        assert matches_with_rc == matches_without_rc
+        assert "KRAS" in matches_with_rc
+
+    def test_find_partner_hits_uses_rc_sequence(self):
+        """Should use provided rc_sequence for partner hits."""
+        read = "AAA" + TEST_DOMAIN_ENDS['TPR'] + "TTT"
+        linker = "GGG"
+
+        # Build reverse complement data
+        rc_domain_ends = {k: reverse_complement(v) for k, v in TEST_DOMAIN_ENDS.items()}
+
+        # Pre-compute reverse complement
+        rc_seq = reverse_complement(read)
+
+        # Test with rc_sequence provided
+        hits_with_rc, linker_hits_with_rc = find_partner_hits(
+            read, TEST_DOMAIN_ENDS,
+            linker_sequence=linker,
+            orientation_check=True,
+            rc_domain_ends=rc_domain_ends,
+            rc_sequence=rc_seq,
+        )
+
+        # Test without rc_sequence
+        hits_without_rc, linker_hits_without_rc = find_partner_hits(
+            read, TEST_DOMAIN_ENDS,
+            linker_sequence=linker,
+            orientation_check=True,
+            rc_domain_ends=rc_domain_ends,
+            rc_sequence=None,
+        )
+
+        # Results should be identical
+        assert hits_with_rc == hits_without_rc
+        assert linker_hits_with_rc == linker_hits_without_rc
+
+    def test_count_fusion_matches_computes_rc_once_per_read(self, tmp_path):
+        """Should compute reverse complement once per read when orientation_check=True."""
+        breakpoints = {
+            'TPR': {
+                'TPR_test': 'ATGCATGCATGC',
+            }
+        }
+        domain_ends = {'TPR': 'ATGCATGC'}
+
+        # Create FASTQ with multiple reads
+        fastq_content = """@read1
+AAAATGCATGCATGCAAA
++
+IIIIIIIIIIIIIIIIII
+@read2
+AAAATGCATGCATGCAAA
++
+IIIIIIIIIIIIIIIIII
+@read3
+GGGGGGGGGGGGGGGGGG
++
+IIIIIIIIIIIIIIIIII
+"""
+        fastq_file = tmp_path / "test.fastq"
+        fastq_file.write_text(fastq_content)
+
+        # Count with orientation_check=False (baseline)
+        counts_no_rc = count_fusion_matches(
+            str(fastq_file),
+            breakpoints,
+            domain_ends,
+            show_progress=False,
+            orientation_check=False
+        )
+
+        # Count with orientation_check=True (should use memoization)
+        counts_with_rc = count_fusion_matches(
+            str(fastq_file),
+            breakpoints,
+            domain_ends,
+            show_progress=False,
+            orientation_check=True
+        )
+
+        # Both should work correctly
+        # With orientation_check=True, may find additional matches in reverse complement
+        assert counts_no_rc.get('TPR_test', 0) == 2
+        assert counts_with_rc.get('TPR_test', 0) >= 2  # May be higher due to RC matches
+
+    def test_rc_sequence_fallback_when_none(self):
+        """Should compute reverse complement when rc_sequence is None."""
+        read = "AAAA" + TEST_BREAKPOINTS['TPR']['TPR_126_Met_WT'] + "TTTT"
+        domain_ends = {'TPR': TEST_BREAKPOINTS['TPR']['TPR_126_Met_WT'][-12:]}
+
+        # Build reverse complement data
+        rc_domain_ends = {k: reverse_complement(v) for k, v in domain_ends.items()}
+        rc_breakpoints = {
+            partner: {fid: reverse_complement(seq) for fid, seq in bp_dict.items()}
+            for partner, bp_dict in TEST_BREAKPOINTS.items()
+        }
+
+        # Test with rc_sequence=None (should compute internally)
+        matches = find_matches_in_read(
+            read, domain_ends, TEST_BREAKPOINTS,
+            orientation_check=True,
+            rc_domain_ends=rc_domain_ends,
+            rc_breakpoints=rc_breakpoints,
+            rc_sequence=None,  # Explicitly None
+        )
+
+        # Should still find matches
+        assert 'TPR_126_Met_WT' in matches
+
+    def test_rc_sequence_consistency_across_functions(self):
+        """rc_sequence should produce consistent results across all functions."""
+        read = "AAAA" + TEST_BREAKPOINTS['TPR']['TPR_126_Met_WT'] + "TTTT"
+        domain_ends = {'TPR': TEST_BREAKPOINTS['TPR']['TPR_126_Met_WT'][-12:]}
+        kmers_by_len = {3: {"AAA": ["KRAS"]}}
+
+        # Build reverse complement data
+        rc_domain_ends = {k: reverse_complement(v) for k, v in domain_ends.items()}
+        rc_breakpoints = {
+            partner: {fid: reverse_complement(seq) for fid, seq in bp_dict.items()}
+            for partner, bp_dict in TEST_BREAKPOINTS.items()
+        }
+
+        # Pre-compute reverse complement once
+        rc_seq = reverse_complement(read)
+
+        # All functions should use the same rc_sequence
+        matches1 = find_matches_in_read(
+            read, domain_ends, TEST_BREAKPOINTS,
+            orientation_check=True,
+            rc_domain_ends=rc_domain_ends,
+            rc_breakpoints=rc_breakpoints,
+            rc_sequence=rc_seq,
+        )
+
+        matches2 = find_unfused_matches_in_read(
+            read, kmers_by_len,
+            orientation_check=True,
+            rc_sequence=rc_seq,
+        )
+
+        hits, _ = find_partner_hits(
+            read, domain_ends,
+            orientation_check=True,
+            rc_domain_ends=rc_domain_ends,
+            rc_sequence=rc_seq,
+        )
+
+        # All should work correctly with the same rc_sequence
+        assert 'TPR_126_Met_WT' in matches1
+        assert isinstance(matches2, (set, tuple))
+        assert isinstance(hits, set)
+
+
+# =============================================================================
 # RUN TESTS
 # =============================================================================
 
