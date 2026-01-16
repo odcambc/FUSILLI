@@ -105,6 +105,16 @@ detection:
   # Optional: fallback to full breakpoint scan when pre-filter misses (debug only)
   # prefilter_fallback: false
 
+  # Optional: Process unmerged reads separately from merged reads
+  # When true, processes R1 and R2 unmerged reads (from bbmerge) separately
+  # and keeps counts distinct from merged read counts
+  # Default: false (only merged reads are processed)
+  # When enabled, generates separate count files:
+  #   - {sample}.R1.unmerged_fusion_counts.csv
+  #   - {sample}.R2.unmerged_fusion_counts.csv
+  # These counts are aggregated separately from merged counts
+  unmerged_detection: false
+
 # -----------------------------------------------------------------------------
 # SEQUENCING PARAMETERS
 # -----------------------------------------------------------------------------
