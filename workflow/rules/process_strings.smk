@@ -82,6 +82,16 @@ rule detect_fusions_string:
 rule detect_fusions_unmerged_string:
     """
     Detect fusion breakpoints in unmerged reads using string matching.
+
+    This rule processes R1 and R2 unmerged reads separately (via {mate} wildcard).
+    It uses the same two-stage algorithm as merged detection:
+    1. Pre-filter: Check if read contains any partner domain 3' end
+    2. Match: Search for specific breakpoint sequences
+    3. Unfused: Detect unfused control sequences
+
+    Input is the unmerged reads from bbmerge (reads that failed to merge).
+    Output files use .unmerged_fusion_counts.csv suffix to keep counts distinct
+    from merged read counts. Empty unmerged files are handled gracefully.
     """
     input:
         fastq="results/{experiment}/merged/{sample}_{mate}.unmerged.fastq.gz",
@@ -97,11 +107,12 @@ rule detect_fusions_unmerged_string:
         progress_interval=PROGRESS_INTERVAL,
         orientation_check=ORIENTATION_CHECK,
         prefilter_fallback=PREFILTER_FALLBACK,
+        linker_first=LINKER_FIRST,
         linker_sequence=LINKER_SEQUENCE,
         breakpoint_window=BREAKPOINT_WINDOW
     log:
         "logs/{experiment}/string_match/{sample}.{mate}.unmerged.log"
-    threads: 1
+    threads: 1  # String matching is I/O bound, not CPU bound
     script:
         "../scripts/string_matcher.py"
 
