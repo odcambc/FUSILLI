@@ -17,12 +17,20 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "workflow" / "scripts"))
 from string_matcher import (
     find_matches_in_read,
     find_unfused_matches_in_read,
+    find_partner_hits,
     load_breakpoint_sequences,
     load_domain_ends,
     load_unfused_kmers,
     count_fusion_matches,
     parse_fastq_python,
     write_counts_csv,
+    build_domain_ends_automaton,
+    build_breakpoints_automaton,
+    build_partner_breakpoints_automata,
+    build_unfused_kmers_automata,
+    find_matches_aho,
+    reverse_complement,
+    HAS_AHOCORASICK,
 )
 
 
@@ -416,6 +424,101 @@ IIIIIIIIIIIIIIIIII
         )
 
         assert counts.get('TPR_no_end', 0) == 0
+
+
+# =============================================================================
+# TEST: Aho-Corasick Optimizations
+# =============================================================================
+
+class TestAhoCorasickOptimizations:
+    """Tests for Aho-Corasick automaton-based optimizations."""
+
+    @pytest.mark.skipif(not HAS_AHOCORASICK, reason="pyahocorasick not available")
+    def test_build_domain_ends_automaton(self):
+        """Should build automaton for domain ends."""
+        automaton = build_domain_ends_automaton(TEST_DOMAIN_ENDS)
+        assert automaton is not None
+
+        # Test matching
+        matches = find_matches_aho("AAA" + TEST_DOMAIN_ENDS['TPR'] + "TTT", automaton)
+        assert 'TPR' in matches
+        assert 'CCDC6' not in matches
+
+    @pytest.mark.skipif(not HAS_AHOCORASICK, reason="pyahocorasick not available")
+    def test_build_breakpoints_automaton(self):
+        """Should build automaton for breakpoint sequences."""
+        automaton = build_breakpoints_automaton(TEST_BREAKPOINTS)
+        assert automaton is not None
+
+        # Test matching
+        bp_seq = TEST_BREAKPOINTS['TPR']['TPR_126_Met_WT']
+        matches = find_matches_aho("AAA" + bp_seq + "TTT", automaton)
+        # Matches should be tuples of (partner, fusion_id)
+        assert any(m[0] == 'TPR' and m[1] == 'TPR_126_Met_WT' for m in matches if isinstance(m, tuple))
+
+    @pytest.mark.skipif(not HAS_AHOCORASICK, reason="pyahocorasick not available")
+    def test_aho_matches_same_as_original(self):
+        """Aho-Corasick implementation should produce same results as original."""
+        read = "AAAA" + TEST_BREAKPOINTS['TPR']['TPR_126_Met_WT'] + "TTTT"
+        domain_ends = {'TPR': TEST_BREAKPOINTS['TPR']['TPR_126_Met_WT'][-12:]}
+
+        # Original implementation
+        original_matches = find_matches_in_read(
+            read, domain_ends, TEST_BREAKPOINTS,
+            domain_ends_automaton=None  # Force original
+        )
+
+        # Aho-Corasick implementation
+        domain_automaton = build_domain_ends_automaton(domain_ends)
+        partner_automata = build_partner_breakpoints_automata(TEST_BREAKPOINTS)
+        aho_matches = find_matches_in_read(
+            read, domain_ends, TEST_BREAKPOINTS,
+            domain_ends_automaton=domain_automaton,
+            partner_breakpoints_automata=partner_automata
+        )
+
+        assert set(original_matches) == set(aho_matches)
+
+    @pytest.mark.skipif(not HAS_AHOCORASICK, reason="pyahocorasick not available")
+    def test_aho_unfused_matches_same_as_original(self):
+        """Aho-Corasick unfused matching should match original."""
+        kmers_by_len = {3: {"AAA": ["KRAS"], "TTT": ["NRAS"]}}
+        read = "GGGAAATTTCCC"
+
+        # Original implementation
+        original_matches = find_unfused_matches_in_read(
+            read, kmers_by_len, unfused_automata=None
+        )
+
+        # Aho-Corasick implementation
+        automata = build_unfused_kmers_automata(kmers_by_len)
+        aho_matches = find_unfused_matches_in_read(
+            read, kmers_by_len, unfused_automata=automata
+        )
+
+        assert original_matches == aho_matches
+
+    def test_fallback_when_ahocorasick_unavailable(self, monkeypatch):
+        """Should fall back to original implementation when pyahocorasick unavailable."""
+        # Mock HAS_AHOCORASICK to be False
+        import string_matcher
+        original_has_aho = string_matcher.HAS_AHOCORASICK
+        string_matcher.HAS_AHOCORASICK = False
+
+        try:
+            read = "AAAA" + TEST_BREAKPOINTS['TPR']['TPR_126_Met_WT'] + "TTTT"
+            domain_ends = {'TPR': TEST_BREAKPOINTS['TPR']['TPR_126_Met_WT'][-12:]}
+
+            # Should still work, using original implementation
+            matches = find_matches_in_read(
+                read, domain_ends, TEST_BREAKPOINTS,
+                domain_ends_automaton=None  # None because HAS_AHOCORASICK is False
+            )
+
+            assert 'TPR_126_Met_WT' in matches
+        finally:
+            # Restore original value
+            string_matcher.HAS_AHOCORASICK = original_has_aho
 
 
 # =============================================================================
