@@ -1,0 +1,3 @@
+Sequence length in fusion_partners.csv ought to be generated automatically or at least optional
+Check if partner_name in fusion partners.csv matches fasta member?
+Handle single-end sequencing

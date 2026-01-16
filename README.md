@@ -1,6 +1,6 @@
 # FUSILLI
 
-**Fusion Utility for Scanning and Identification of Library Linked Interactions**
+## Fusion Utility for Scanning and Identification of Library Linked Interactions
 
 A Snakemake pipeline for analyzing mutational scanning data from fusion protein libraries.
 
@@ -8,33 +8,37 @@ A Snakemake pipeline for analyzing mutational scanning data from fusion protein 
 
 ## Overview
 
-FUSILLI processes short-read sequencing data from libraries of fusion constructs (e.g., kinase domain fusions) and produces counts of detected fusion breakpoints. It's designed for experiments where you want to identify which fusion truncation variants are present in a sample.
+FUSILLI is a tool for analyzing mutational scanning data from fusion protein libraries. It was designed for a project building off work studying MET kinase domain fusions and exon skipping in disrupting signalling pathways using deep mutational scanning (DMS) ([Estevam et al., 2024](https://elifesciences.org/articles/91619), [Estevam et al., 2025](https://elifesciences.org/articles/101882)). This tool was created to support the analysis of a library consisting of a variety of domains (TPR, CCDC6, etc.) fused to a variably truncated anchor domain (e.g, MET kinase).
+
+FUSILLI processes short-read sequencing data from libraries of fusion constructs (e.g., kinase domain fusions) and produces counts of detected variants-specific fusion breakpoints. It's intended to be used in DMS-type experiments where counting the number and identity of specific variants is the primary goal.
 
 ### How It Works
 
-```
+```(markdown)
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                        FUSION LIBRARY STRUCTURE                         │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                         │
 │   A typical kinase fusion:                                              │
 │                                                                         │
-│   [Partner N-term]────[Linker]────[Kinase Domain (full)]                │
+│   [Partner N-term]────[Linker]────[Kinase Domain (truncated)]           │
 │         ↑                              ↑                                │
-│    Variable truncation            Constant anchor                       │
+│    Full length partner            Variable truncated anchor             │
 │    (breakpoint)                                                         │
 │                                                                         │
 │   Example: TPR-MET fusion                                               │
-│   [TPR aa 1-142]──[GS]──[MET kinase domain]                            │
+│   [TPR]──[GS]──[MET kinase domain (truncated)]                          │
 │                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
 The pipeline:
+
 1. **Preprocesses** reads (adapter trimming, quality filtering, read merging)
-2. **Generates** all possible breakpoint sequences for your fusion library
+2. **Identifies** all possible breakpoint sequences for your fusion library
 3. **Detects** fusions by string matching breakpoint k-mers against reads
 4. **Counts** occurrences of each fusion variant per sample
+5. **Generates** a summary of the counts across all samples, statistics, and reproducibility metadata
 
 ---
 
@@ -52,7 +56,8 @@ conda env create --file fusilli_env.yaml
 conda activate FUSILLI
 ```
 
-> **Note for Apple Silicon Macs:** Use Rosetta emulation:
+> **Note for Apple Silicon Macs:** It may be necessary to use Rosetta emulation to build the conda environment:
+>
 > ```bash
 > CONDA_SUBDIR=osx-64 conda env create --file fusilli_env.yaml
 > ```
@@ -65,24 +70,39 @@ conda activate FUSILLI
    - Configure your fusion library (anchor, partners, linker)
 
 2. **Create your samples file** (`config/samples.csv`):
+   This file defines the sequencing samples to be processed. It should contain the following columns:
+
    ```csv
    sample,condition,replicate,file
    plasmid_rep1,baseline,1,pDNA_S1_L001
    treated_rep1,drug,1,treated_S2_L001
    ```
 
+   - `sample`: Unique sample identifier
+   - `condition`: Experimental condition
+   - `replicate`: Replicate number (optional)
+   - `time`: Timepoint (optional)
+   - `tile`: Tile identifier for tiled amplicon sequencing (optional)
+   - `file`: FASTQ filename prefix (without `_R1_001.fastq.gz`, `_R2_001.fastq.gz`)
+
 3. **Create your partners file** (`config/fusion_partners.csv`):
+
    ```csv
    partner_name,sequence_length,include,description
    TPR,426,true,TPR-MET fusion partner
    CCDC6,303,true,RET fusion partner
    ```
 
+   - `partner_name`: Must match FASTA header
+   - `sequence_length`: Length in nucleotides
+   - `include`: Whether to include the partner in the analysis (boolean)
+   - `description`: Human-readable description (optional)
+
 4. **Add reference sequences** to `references/`:
    - FASTA file with sequences for anchor and all partners
+   - Sequence names must match `partner_name` in `fusion_partners.csv`
 
-> **Note:** The main pipeline supports paired-end data only. Single-end and
-> other legacy flows have been moved to `workflow/legacy/`.
+> **Note:** The pipeline expects paired-end data. Single-end data is currently not supported.
 
 ### Run
 
@@ -148,29 +168,29 @@ quick:
 
 ### Samples File (`config/samples.csv`)
 
-| Column | Required | Description |
-|--------|----------|-------------|
-| `sample` | Yes | Unique sample identifier |
-| `condition` | Yes | Experimental condition |
-| `file` | Yes | FASTQ filename prefix (without `_R1_001.fastq.gz`) |
-| `replicate` | No | Replicate number |
-| `time` | No | Timepoint |
-| `tile` | No | Tile identifier |
+| Column      | Required | Description                                        |
+| ----------- | -------- | -------------------------------------------------- |
+| `sample`    | Yes      | Unique sample identifier                           |
+| `condition` | Yes      | Experimental condition                             |
+| `file`      | Yes      | FASTQ filename prefix (without `_R1_001.fastq.gz`) |
+| `replicate` | No       | Replicate number                                   |
+| `time`      | No       | Timepoint                                          |
+| `tile`      | No       | Tile identifier (for tiled amplicon sequencing)    |
 
 ### Partners File (`config/fusion_partners.csv`)
 
-| Column | Required | Description |
-|--------|----------|-------------|
-| `partner_name` | Yes | Must match FASTA header |
-| `sequence_length` | Yes | Length in nucleotides |
-| `include` | Yes | `true` or `false` |
-| `description` | No | Human-readable description |
+| Column            | Required | Description                |
+| ----------------- | -------- | -------------------------- |
+| `partner_name`    | Yes      | Must match FASTA header    |
+| `sequence_length` | Yes      | Length in nucleotides      |
+| `include`         | Yes      | `true` or `false`          |
+| `description`     | No       | Human-readable description |
 
 ---
 
 ## Output Files
 
-```
+```(markdown)
 results/{experiment}/
 ├── references/
 │   ├── breakpoint_sequences.csv   # All possible breakpoint k-mers
@@ -183,11 +203,15 @@ results/{experiment}/
 │   ├── conda-env.yaml             # Conda environment export (if available)
 │   └── pip-freeze.txt             # Pip freeze output (if available)
 └── fusion_counts_summary.csv      # Aggregated counts matrix
+
+stats/{experiment}/
+├── {experiment}_multiqc.html       # MultiQC report
+└── (tool name))/                   # Additional intermediate tool reports
 ```
 
 ### Fusion Counts Format
 
-```csv
+```(markdown)
 fusion_id,count
 TPR_426_Met_WT,15234
 TPR_423_Met_WT,14892
@@ -196,6 +220,7 @@ CCDC6_303_Met_WT,8921
 ```
 
 The `fusion_id` encodes:
+
 - Partner name
 - Breakpoint position (nucleotides from partner start)
 - Anchor name
@@ -207,6 +232,7 @@ The `fusion_id` encodes:
 ### Naming Convention
 
 A fusion ID like `TPR_126_Met_WT` means:
+
 - **Partner:** TPR
 - **Breakpoint:** 126 nucleotides from TPR start (= amino acid 42)
 - **Anchor:** Met_WT (full kinase domain)
@@ -215,7 +241,7 @@ A fusion ID like `TPR_126_Met_WT` means:
 
 For each breakpoint, the pipeline generates a k-mer spanning the junction:
 
-```
+```(markdown)
 Partner sequence:  ...ATGCTAGCTAGC[BREAKPOINT]
 Linker:                            GGGAGC
 Anchor sequence:                          ATGAAAAAG...
@@ -319,20 +345,24 @@ python workflow/scripts/string_matcher.py \
 
 ### Common Issues
 
-**"Partner X not found in sequences"**
+#### "Partner X not found in sequences"
+
 - Ensure partner name in CSV exactly matches FASTA header
 - Check for trailing whitespace
 
-**"Sequence length mismatch"**
+#### "Sequence length mismatch"
+
 - Update `sequence_length` in partners CSV to match actual FASTA sequence
 
-**Slow performance**
+#### *Slow performance
+
 - Install `pyfastx` for faster FASTQ parsing: `pip install pyfastx`
 - Reduce `breakpoint_window` if appropriate for your read length
 
 ### Getting Help
 
 For issues, please open a GitHub issue with:
+
 1. Your config file (anonymized if needed)
 2. The error message
 3. Snakemake version (`snakemake --version`)
@@ -348,6 +378,19 @@ MIT License - see [LICENSE](LICENSE) for details.
 If you use FUSILLI in your research, please cite:
 > [Citation to be added upon publication]
 
+## Documentation
+
+Additional documentation is available in the `docs/` directory:
+
+- **[Architecture](docs/ARCHITECTURE.md)** - System architecture and design decisions
+- **[Technical Patterns](docs/TECHNICAL.md)** - Coding conventions and best practices
+- **[Project Management](docs/PROJECT_MANAGEMENT.md)** - Branch management, task design, and workflow organization
+
 ## Contributing
 
 Contributions welcome! Please submit issues or pull requests on GitHub.
+
+Before contributing, please review:
+
+- [Technical Patterns](docs/TECHNICAL.md) for coding conventions
+- [Project Management Guide](docs/PROJECT_MANAGEMENT.md) for workflow and task organization
