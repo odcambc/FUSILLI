@@ -49,15 +49,10 @@ table_columns:
   # - "Shannon Diversity"
 
 # Custom FUSILLI modules
-custom_modules:
-  - name: fusilli_detection
-    path: workflow/scripts/multiqc_modules/fusilli_detection.py
-  - name: fusilli_diversity
-    path: workflow/scripts/multiqc_modules/fusilli_diversity.py
-  - name: fusilli_preprocessing
-    path: workflow/scripts/multiqc_modules/fusilli_preprocessing.py
-  - name: fusilli_partners
-    path: workflow/scripts/multiqc_modules/fusilli_partners.py
+# Note: FUSILLI custom modules are packaged separately as 'fusilli-multiqc'
+# and registered via setuptools entry points. They are automatically discovered
+# by MultiQC when the package is installed. No custom_modules configuration needed.
+# The package is installed via workflow/envs/qc.yaml from Git repository.
 
 # Default plot settings
 plot_settings:

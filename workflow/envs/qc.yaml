@@ -10,8 +10,8 @@ dependencies:
   - snakemake-wrapper-utils>=0.6
   - pip
   - pip:
-    # Install FUSILLI custom MultiQC modules as a package
+    # Install FUSILLI custom MultiQC modules from Git repository
     # This registers them as MultiQC plugins via setuptools entry points
-    # Path is relative to this conda environment file (workflow/envs/qc.yaml)
-    # From workflow/envs/ -> ../../ goes to repo root -> fusilli-multiqc/
-    - -e ../../fusilli-multiqc
+    # TODO: Update with actual Git repository URL once published
+    # For production use, install from PyPI: fusilli-multiqc>=1.0.0
+    - git+https://github.com/user/fusilli-multiqc.git@main

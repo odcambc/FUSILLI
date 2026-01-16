@@ -223,11 +223,12 @@ When `detection.unmerged_detection` is enabled in the configuration, the pipelin
 - **Resources:** Configurable memory and thread limits
 
 ### MultiQC Custom Modules
-- **Package location:** `fusilli-multiqc/` at repository root (separate pip-installable package)
+- **Package location:** External Git repository (separate pip-installable package)
 - **Package structure:** `fusilli_multiqc/modules/` contains custom MultiQC modules
-- **Installation:** Installed via conda environment (`workflow/envs/qc.yaml`) or manually with `pip install -e fusilli-multiqc/`
+- **Installation:** Installed via conda environment (`workflow/envs/qc.yaml`) from Git repository, or manually with `pip install git+https://github.com/user/fusilli-multiqc.git@main`
+- **Production installation:** Once published to PyPI, install with `pip install fusilli-multiqc>=1.0.0`
 - **Module registration:** Modules registered via setuptools entry points (`multiqc.modules.v1`)
-- **Independence:** Package can be versioned and distributed separately from main pipeline
+- **Independence:** Package is versioned and distributed separately from main pipeline
 
 ## Component Interactions
 

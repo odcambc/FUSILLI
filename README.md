@@ -468,7 +468,7 @@ The MultiQC report (`stats/{experiment}/{experiment}_multiqc.html`) provides int
 
 ### MultiQC Custom Modules Package
 
-FUSILLI's custom MultiQC modules are packaged separately as `fusilli-multiqc`, a pip-installable Python package located at the repository root. This package contains four custom modules:
+FUSILLI's custom MultiQC modules are packaged separately as `fusilli-multiqc`, a pip-installable Python package available from a Git repository (and will be published to PyPI). This package contains four custom modules:
 
 - **Detection Metrics** (`fusilli_detection`): Detection efficiency, library coverage, and sensitivity analysis
 - **Diversity Metrics** (`fusilli_diversity`): Shannon/Simpson diversity indices, evenness, and variant distribution
@@ -478,14 +478,14 @@ FUSILLI's custom MultiQC modules are packaged separately as `fusilli-multiqc`, a
 The package is automatically installed when setting up the conda environment via `workflow/envs/qc.yaml`. For manual installation or use in other projects:
 
 ```bash
-# Install from local directory (development)
-pip install -e fusilli-multiqc/
-
-# Install from git repository (if published)
+# Install from Git repository (development/testing)
 pip install git+https://github.com/user/fusilli-multiqc.git@main
+
+# Install from PyPI (production, once published)
+pip install fusilli-multiqc>=1.0.0
 ```
 
-The package registers MultiQC entry points automatically, so modules are discovered when MultiQC runs. See `fusilli-multiqc/README.md` for more details.
+The package registers MultiQC entry points automatically, so modules are discovered when MultiQC runs. No additional configuration is needed beyond installing the package.
 
 For detailed guidance on interpreting QC metrics, see the [QC Metrics Interpretation Guide](docs/QC_METRICS_GUIDE.md).
 

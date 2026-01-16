@@ -424,8 +424,10 @@ bbmerge:
 # Note: FUSILLI custom modules are now packaged separately as 'fusilli-multiqc'
 # and registered via setuptools entry points. They are automatically discovered
 # by MultiQC when the package is installed. No custom_modules configuration needed.
-# The package is installed via workflow/envs/qc.yaml or manually with:
-#   pip install -e fusilli-multiqc/
+# The package is installed via workflow/envs/qc.yaml from Git repository, or manually with:
+#   pip install git+https://github.com/user/fusilli-multiqc.git@main
+# Once published to PyPI, install with:
+#   pip install fusilli-multiqc>=1.0.0
 
 # Table settings
 table_columns_visible:
@@ -469,10 +471,11 @@ plots:
 **Effort**: Medium-High
 
 1. **Create custom module structure**:
-   - `fusilli-multiqc/` package directory at repository root
+   - `fusilli-multiqc/` package in separate Git repository
    - `fusilli_multiqc/modules/` subdirectory for modules
    - `fusilli_multiqc/utils.py` for shared utilities (replaces `fusilli_base.py`)
    - Package setup files (`setup.py`, `pyproject.toml`)
+   - Package installed from Git repository or PyPI (once published)
 
 2. **Implement detection metrics module**:
    - Parse `fusion_qc_metrics.csv` and `sensitivity_metrics.csv`
@@ -528,7 +531,7 @@ plots:
 ## File Structure
 
 ```
-fusilli-multiqc/                  # Standalone pip-installable package
+fusilli-multiqc/                  # Standalone pip-installable package (separate repository)
 ├── fusilli_multiqc/
 │   ├── __init__.py
 │   ├── utils.py                  # Shared utilities (replaces fusilli_base.py)
@@ -546,7 +549,7 @@ workflow/
 ├── rules/
 │   └── qc.smk                    # Updated with histogram inputs
 ├── envs/
-│   └── qc.yaml                   # Conda environment (installs fusilli-multiqc)
+│   └── qc.yaml                   # Conda environment (installs fusilli-multiqc from Git/PyPI)
 config/
 └── multiqc_config.yaml           # MultiQC configuration
 ```
