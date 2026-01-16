@@ -74,11 +74,18 @@ except ImportError:
 
 @dataclass
 class BreakpointSequence:
-    """Represents a single fusion breakpoint sequence."""
+    """
+    Represents a single fusion breakpoint sequence.
+
+    The breakpoint position (breakpoint_nt) is relative to whichever component
+    is truncated, as specified by the truncated_component configuration:
+    - When truncated_component == 'partner': position is from partner start
+    - When truncated_component == 'anchor': position is from anchor start
+    """
     fusion_id: str          # Unique identifier: {partner}_{bp_pos}_{anchor}
     partner_name: str       # Name of fusion partner
     anchor_name: str        # Name of anchor domain
-    breakpoint_nt: int      # Breakpoint position in partner (nucleotides from start)
+    breakpoint_nt: int      # Breakpoint position (nucleotides from start of truncated component)
     breakpoint_aa: int      # Breakpoint position (amino acids/codons)
     sequence: str           # The actual breakpoint k-mer for detection
     full_fusion_length: int  # Length of full fusion construct

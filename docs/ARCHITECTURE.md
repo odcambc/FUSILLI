@@ -270,8 +270,10 @@ When `detection.unmerged_detection` is enabled in the configuration, the pipelin
 `{partner}_{breakpoint_nt}_{anchor}`
 - Example: `TPR_126_Met_WT`
 - Partner: TPR
-- Breakpoint: 126 nucleotides from partner start
+- Breakpoint: 126 nucleotides from anchor start (when `truncated_component: 'anchor'`)
 - Anchor: Met_WT
+
+**Note:** The breakpoint position is relative to whichever component is truncated, as specified by `fusion_library.anchor.truncated_component` in the configuration. When `truncated_component: 'anchor'` (the default in the actual configuration), the breakpoint represents nucleotides from the anchor start, indicating how much of the anchor's N-terminal region is truncated.
 
 ### Breakpoint Sequences
 - K-mer spanning breakpoint junction

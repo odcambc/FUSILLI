@@ -227,8 +227,10 @@ CCDC6_303_Met_WT,8921
 The `fusion_id` encodes:
 
 - Partner name
-- Breakpoint position (nucleotides from partner start)
+- Breakpoint position (nucleotides from the start of the truncated component)
 - Anchor name
+
+**Note:** The breakpoint position is relative to whichever component is truncated (as specified by `fusion_library.anchor.truncated_component` in the config). When `truncated_component: 'anchor'`, the breakpoint is measured from the anchor start. When `truncated_component: 'partner'`, it's measured from the partner start.
 
 ---
 
@@ -239,8 +241,10 @@ The `fusion_id` encodes:
 A fusion ID like `TPR_126_Met_WT` means:
 
 - **Partner:** TPR
-- **Breakpoint:** 126 nucleotides from TPR start (= amino acid 42)
-- **Anchor:** Met_WT (full kinase domain)
+- **Breakpoint:** 126 nucleotides from anchor start (e.g., amino acids 1-42 of MET missing) when `truncated_component: 'anchor'`
+- **Anchor:** Met_WT (kinase domain, variably truncated)
+
+**Note:** The breakpoint position interpretation depends on the `truncated_component` configuration setting. In the default configuration (`truncated_component: 'anchor'`), the breakpoint represents nucleotides from the anchor start, indicating how much of the anchor's N-terminal region is truncated.
 
 ### Breakpoint Sequences
 
