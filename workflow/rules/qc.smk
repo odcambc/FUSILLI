@@ -10,6 +10,11 @@ def get_multiqc_inputs(wildcards):
     inputs.append("stats/{experiment}/fastqc")
     inputs.extend(expand("stats/{{experiment}}/merge/{sample}.ihist", sample=SAMPLES))
     inputs.extend(expand("stats/{{experiment}}/trim/{sample}.trim.stats.txt", sample=SAMPLES))
+    inputs.extend(expand("stats/{{experiment}}/trim/{sample}.qhist", sample=SAMPLES))
+    inputs.extend(expand("stats/{{experiment}}/trim/{sample}.bhist", sample=SAMPLES))
+    inputs.extend(expand("stats/{{experiment}}/trim/{sample}.gchist", sample=SAMPLES))
+    inputs.extend(expand("stats/{{experiment}}/trim/{sample}.aqhist", sample=SAMPLES))
+    inputs.extend(expand("stats/{{experiment}}/trim/{sample}.lhist", sample=SAMPLES))
     inputs.extend(expand("stats/{{experiment}}/contam/{sample}.contam.stats.txt", sample=SAMPLES))
     inputs.extend(
         expand(

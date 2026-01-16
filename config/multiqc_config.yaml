@@ -1,0 +1,52 @@
+# MultiQC Configuration for FUSILLI
+# This configuration enhances MultiQC integration for standard tools
+# (FastQC, BBDuk, BBMerge) and prepares for custom FUSILLI modules.
+
+# Report title template
+# Note: MultiQC will use the experiment name from the directory structure
+report_title: "FUSILLI QC Report"
+
+# Module order - standard tools first, custom modules will be added in Phase 2
+module_order:
+  - fastqc
+  - bbduk
+  - bbmerge
+
+# FastQC settings
+fastqc:
+  # Extract key statistics for general stats table
+  extract_stats: true
+
+# BBDuk settings
+# MultiQC automatically detects BBDuk histogram files when they match known patterns
+# The histogram files (qhist, bhist, gchist, aqhist, lhist) are now included
+# in the MultiQC inputs and will be automatically parsed
+bbduk:
+  # MultiQC's BBDuk module will automatically detect and parse histogram files
+  # when they are present in the input directory
+
+# BBMerge settings
+bbmerge:
+  # Extract additional statistics from insert size histogram (ihist) files
+  extract_ihist_stats: true
+
+# Table columns to display in general stats
+# These will be populated by the respective modules
+table_columns:
+  # FastQC columns
+  - "Total Sequences"
+  - "Sequence length"
+  - "%GC"
+  # BBMerge columns
+  - "Merged Reads"
+  # FUSILLI-specific columns (will be added in Phase 2)
+  # - "Detection Efficiency"
+  # - "Coverage Fraction"
+  # - "Shannon Diversity"
+
+# Default plot settings
+plot_settings:
+  # Use interactive plots
+  interactive: true
+  # Default plot format
+  format: "png"
