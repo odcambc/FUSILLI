@@ -214,6 +214,33 @@ stats/{experiment}/
 └── (tool name))/                   # Additional intermediate tool reports
 ```
 
+### QC Metrics Files
+
+The pipeline generates comprehensive QC metrics files in `results/{experiment}/`:
+
+- **`fusion_qc_metrics.csv`**: Per-sample fusion detection metrics including:
+  - Detection efficiency (reads matched / reads processed)
+  - Library coverage (variant, breakpoint, partner coverage fractions)
+  - Diversity indices (Shannon, Simpson, evenness)
+  - Detection yield (detections per read, detections per million)
+  - Top N fractions (top 1, top 10 variant fractions)
+
+- **`sensitivity_metrics.csv`**: Sensitivity analysis metrics:
+  - Read length statistics
+  - Expected detection fraction (fraction of reads long enough for breakpoint detection)
+  - Sensitivity index (actual detections / expected detections)
+  - Overlap statistics from read merging
+
+- **`decay_metrics.csv`**: Read retention through preprocessing steps:
+  - Read and base counts at each step (raw, trimmed, cleaned, quality-filtered, merged)
+  - Retention fractions at each step
+
+- **`trim_metrics.csv`**, **`contam_metrics.csv`**, **`quality_metrics.csv`**: Step-specific preprocessing metrics
+
+- **`partner_counts_summary.csv`**: Partner domain detection counts across samples
+
+All metrics are automatically aggregated into a comprehensive MultiQC report at `stats/{experiment}/{experiment}_multiqc.html`. See the [QC Metrics Interpretation Guide](docs/QC_METRICS_GUIDE.md) for detailed information on interpreting these metrics.
+
 ### Fusion Counts Format
 
 ```(markdown)
@@ -419,6 +446,49 @@ MIT License - see [LICENSE](LICENSE) for details.
 If you use FUSILLI in your research, please cite:
 > [Citation to be added upon publication]
 
+## Quality Control & MultiQC
+
+FUSILLI includes comprehensive quality control (QC) metrics that are automatically aggregated into a MultiQC report. The QC system tracks:
+
+1. **Standard Tool Metrics** (FastQC, BBDuk, BBMerge):
+   - Read quality scores and distributions
+   - Adapter contamination
+   - Read length distributions
+   - Merge rates and insert sizes
+   - Preprocessing retention rates
+
+2. **FUSILLI-Specific Metrics**:
+   - **Detection Performance**: Efficiency of fusion detection, read utilization
+   - **Library Representation**: Coverage of expected variants, breakpoints, and partners
+   - **Library Diversity**: Shannon/Simpson diversity indices, evenness, top N fractions
+   - **Preprocessing Efficiency**: Read retention through each preprocessing step
+   - **Partner Detection**: Partner domain detection across samples
+
+The MultiQC report (`stats/{experiment}/{experiment}_multiqc.html`) provides interactive visualizations and summary tables for all metrics, enabling easy cross-sample comparison and quality assessment.
+
+### MultiQC Custom Modules Package
+
+FUSILLI's custom MultiQC modules are packaged separately as `fusilli-multiqc`, a pip-installable Python package located at the repository root. This package contains four custom modules:
+
+- **Detection Metrics** (`fusilli_detection`): Detection efficiency, library coverage, and sensitivity analysis
+- **Diversity Metrics** (`fusilli_diversity`): Shannon/Simpson diversity indices, evenness, and variant distribution
+- **Preprocessing Metrics** (`fusilli_preprocessing`): Read retention through preprocessing steps
+- **Partner Detection** (`fusilli_partners`): Partner domain detection heatmaps and coverage
+
+The package is automatically installed when setting up the conda environment via `workflow/envs/qc.yaml`. For manual installation or use in other projects:
+
+```bash
+# Install from local directory (development)
+pip install -e fusilli-multiqc/
+
+# Install from git repository (if published)
+pip install git+https://github.com/user/fusilli-multiqc.git@main
+```
+
+The package registers MultiQC entry points automatically, so modules are discovered when MultiQC runs. See `fusilli-multiqc/README.md` for more details.
+
+For detailed guidance on interpreting QC metrics, see the [QC Metrics Interpretation Guide](docs/QC_METRICS_GUIDE.md).
+
 ## Documentation
 
 Additional documentation is available in the `docs/` directory:
@@ -426,6 +496,7 @@ Additional documentation is available in the `docs/` directory:
 - **[Architecture](docs/ARCHITECTURE.md)** - System architecture and design decisions
 - **[Technical Patterns](docs/TECHNICAL.md)** - Coding conventions and best practices
 - **[Project Management](docs/PROJECT_MANAGEMENT.md)** - Branch management, task design, and workflow organization
+- **[QC Metrics Guide](docs/QC_METRICS_GUIDE.md)** - Guide to interpreting QC metrics and MultiQC reports
 
 ## Contributing
 

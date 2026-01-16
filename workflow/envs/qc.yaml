@@ -8,3 +8,9 @@ dependencies:
   - fastqc
   - multiqc
   - snakemake-wrapper-utils>=0.6
+  - pip
+  - pip:
+    # Install FUSILLI custom MultiQC modules as a package
+    # This registers them as MultiQC plugins via setuptools entry points
+    # Path is relative to workflow/ directory (where Snakefile is located)
+    - -e ../fusilli-multiqc
