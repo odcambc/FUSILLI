@@ -6,11 +6,15 @@
 # Note: MultiQC will use the experiment name from the directory structure
 report_title: "FUSILLI QC Report"
 
-# Module order - standard tools first, custom modules will be added in Phase 2
+# Module order - standard tools first, then custom FUSILLI modules
 module_order:
   - fastqc
   - bbduk
   - bbmerge
+  - fusilli_detection
+  - fusilli_diversity
+  - fusilli_preprocessing
+  - fusilli_partners
 
 # FastQC settings
 fastqc:
@@ -43,6 +47,17 @@ table_columns:
   # - "Detection Efficiency"
   # - "Coverage Fraction"
   # - "Shannon Diversity"
+
+# Custom FUSILLI modules
+custom_modules:
+  - name: fusilli_detection
+    path: workflow/scripts/multiqc_modules/fusilli_detection.py
+  - name: fusilli_diversity
+    path: workflow/scripts/multiqc_modules/fusilli_diversity.py
+  - name: fusilli_preprocessing
+    path: workflow/scripts/multiqc_modules/fusilli_preprocessing.py
+  - name: fusilli_partners
+    path: workflow/scripts/multiqc_modules/fusilli_partners.py
 
 # Default plot settings
 plot_settings:

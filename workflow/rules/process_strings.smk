@@ -133,6 +133,7 @@ rule aggregate_counts:
             "results/{{experiment}}/counts/{sample}.partner_counts.csv",
             sample=SAMPLES
         ),
+        variant_catalog="results/{experiment}/references/variant_catalog.csv",
         merge_logs=expand(
             "logs/{{experiment}}/bbmerge/{sample}.log",
             sample=SAMPLES
@@ -340,6 +341,135 @@ rule aggregate_counts:
 
         json_df = pd.DataFrame(json_metrics)
         metrics_df = metrics_df.merge(json_df, on="sample", how="left")
+
+        # Load variant catalog to calculate expected breakpoints and partners
+        try:
+            variant_catalog = pd.read_csv(input.variant_catalog)
+            # Filter to fusion type only
+            fusion_catalog = variant_catalog[variant_catalog['type'] == 'fusion'].copy()
+
+            # Calculate expected breakpoints (unique breakpoint_nt values)
+            if 'breakpoint_nt' in fusion_catalog.columns:
+                expected_breakpoints = fusion_catalog['breakpoint_nt'].nunique()
+            else:
+                # Fallback: use number of fusion variants
+                expected_breakpoints = len(fusion_catalog)
+
+            # Calculate expected partners (unique partner_name values)
+            if 'partner_name' in fusion_catalog.columns:
+                expected_partners = fusion_catalog['partner_name'].nunique()
+            else:
+                expected_partners = 0
+        except (FileNotFoundError, KeyError, pd.errors.EmptyDataError):
+            # Fallback if variant_catalog is not available - use merged data
+            fusion_data = merged[merged['type'] == 'fusion'].copy()
+            expected_breakpoints = len(fusion_data)
+            expected_partners = 0
+
+        # Calculate diversity, coverage, and yield metrics for each sample
+        import numpy as np
+
+        for idx, row in metrics_df.iterrows():
+            sample = row['sample']
+
+            # Get fusion counts for this sample
+            fusion_data = merged[merged['type'] == 'fusion'].copy()
+            if sample in fusion_data.columns:
+                counts = fusion_data[sample].fillna(0).values
+                total_counts = counts.sum()
+
+                # Filter out zero counts for diversity calculations
+                non_zero_counts = counts[counts > 0]
+
+                if len(non_zero_counts) > 0 and total_counts > 0:
+                    # Calculate proportions
+                    proportions = non_zero_counts / total_counts
+
+                    # Shannon diversity: H' = -Σ(p_i * ln(p_i))
+                    shannon_diversity = float(-np.sum(proportions * np.log(proportions)))
+
+                    # Simpson diversity: 1 - Σ(p_i²)
+                    simpson_diversity = float(1 - np.sum(proportions ** 2))
+
+                    # Evenness: H' / ln(S) where S is number of observed variants
+                    observed_variants = len(non_zero_counts)
+                    if observed_variants > 1:
+                        evenness = float(shannon_diversity / np.log(observed_variants))
+                    else:
+                        evenness = 0.0
+                else:
+                    shannon_diversity = 0.0
+                    simpson_diversity = 0.0
+                    evenness = 0.0
+                    observed_variants = 0
+
+                # Coverage metrics
+                unique_fusions = int(row.get('unique_fusions', 0))
+                expected_fusions = int(row.get('expected_fusions', 0))
+
+                # Variant coverage
+                variant_coverage = float(unique_fusions / expected_fusions) if expected_fusions > 0 else 0.0
+
+                # Breakpoint coverage (unique breakpoints detected)
+                detected_fusions_df = fusion_data[fusion_data[sample] > 0]
+                if 'breakpoint_nt' in detected_fusions_df.columns:
+                    detected_breakpoints = detected_fusions_df['breakpoint_nt'].nunique()
+                else:
+                    # Fallback: parse fusion_id to extract breakpoint positions
+                    # fusion_id format: {partner}_{breakpoint_nt}_{anchor}
+                    detected_breakpoint_set = set()
+                    for fusion_id in detected_fusions_df['fusion_id'].tolist():
+                        parts = fusion_id.split('_')
+                        if len(parts) >= 2:
+                            try:
+                                # Second part should be breakpoint position
+                                bp_pos = int(parts[1])
+                                detected_breakpoint_set.add(bp_pos)
+                            except (ValueError, IndexError):
+                                pass
+                    detected_breakpoints = len(detected_breakpoint_set) if detected_breakpoint_set else unique_fusions
+
+                breakpoint_coverage = float(detected_breakpoints / expected_breakpoints) if expected_breakpoints > 0 else 0.0
+
+                # Partner coverage
+                unique_partners_detected = int(row.get('unique_partners_detected', 0))
+                partner_coverage = float(unique_partners_detected / expected_partners) if expected_partners > 0 else 0.0
+
+                # Yield metrics
+                matched_reads = int(row.get('matched_reads', 0))
+                reads_processed = int(row.get('reads_processed', 0))
+                total_fusion_counts = int(row.get('total_fusion_counts', 0))
+
+                # Detections per read (total fusion counts / reads processed)
+                detections_per_read = float(total_fusion_counts / reads_processed) if reads_processed > 0 else 0.0
+
+                # Detections per million reads
+                detections_per_million = float(detections_per_read * 1000000) if reads_processed > 0 else 0.0
+            else:
+                # No data for this sample
+                shannon_diversity = 0.0
+                simpson_diversity = 0.0
+                evenness = 0.0
+                variant_coverage = 0.0
+                breakpoint_coverage = 0.0
+                partner_coverage = 0.0
+                detections_per_read = 0.0
+                detections_per_million = 0.0
+                observed_variants = 0
+
+            # Add metrics to the row
+            metrics_df.at[idx, 'shannon_diversity'] = shannon_diversity
+            metrics_df.at[idx, 'simpson_diversity'] = simpson_diversity
+            metrics_df.at[idx, 'evenness'] = evenness
+            metrics_df.at[idx, 'variant_coverage'] = variant_coverage
+            metrics_df.at[idx, 'breakpoint_coverage'] = breakpoint_coverage
+            metrics_df.at[idx, 'partner_coverage'] = partner_coverage
+            metrics_df.at[idx, 'detections_per_read'] = detections_per_read
+            metrics_df.at[idx, 'detections_per_million'] = detections_per_million
+            if 'observed_variants' not in metrics_df.columns:
+                metrics_df['observed_variants'] = 0
+            metrics_df.at[idx, 'observed_variants'] = observed_variants
+
         metrics_df.to_csv(output.qc_metrics, index=False)
 
         # Aggregate partner counts across samples
