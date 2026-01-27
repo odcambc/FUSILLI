@@ -365,6 +365,7 @@ rule aggregate_counts:
             fusion_data = merged[merged['type'] == 'fusion'].copy()
             expected_breakpoints = len(fusion_data)
             expected_partners = 0
+            fusion_catalog = None
 
         # Calculate diversity, coverage, and yield metrics for each sample
         import numpy as np
@@ -412,22 +413,21 @@ rule aggregate_counts:
 
                 # Breakpoint coverage (unique breakpoints detected)
                 detected_fusions_df = fusion_data[fusion_data[sample] > 0]
-                if 'breakpoint_nt' in detected_fusions_df.columns:
-                    detected_breakpoints = detected_fusions_df['breakpoint_nt'].nunique()
+                if fusion_catalog is not None and "breakpoint_nt" in fusion_catalog.columns and "fusion_id" in fusion_catalog.columns:
+                    detected_breakpoints = (
+                        detected_fusions_df
+                        .merge(
+                            fusion_catalog[["fusion_id", "breakpoint_nt"]],
+                            on="fusion_id",
+                            how="left",
+                        )["breakpoint_nt"]
+                        .dropna()
+                        .nunique()
+                    )
+                    if detected_breakpoints == 0 and unique_fusions > 0:
+                        detected_breakpoints = unique_fusions
                 else:
-                    # Fallback: parse fusion_id to extract breakpoint positions
-                    # fusion_id format: {partner}_{breakpoint_nt}_{anchor}
-                    detected_breakpoint_set = set()
-                    for fusion_id in detected_fusions_df['fusion_id'].tolist():
-                        parts = fusion_id.split('_')
-                        if len(parts) >= 2:
-                            try:
-                                # Second part should be breakpoint position
-                                bp_pos = int(parts[1])
-                                detected_breakpoint_set.add(bp_pos)
-                            except (ValueError, IndexError):
-                                pass
-                    detected_breakpoints = len(detected_breakpoint_set) if detected_breakpoint_set else unique_fusions
+                    detected_breakpoints = unique_fusions
 
                 breakpoint_coverage = float(detected_breakpoints / expected_breakpoints) if expected_breakpoints > 0 else 0.0
 
@@ -632,12 +632,12 @@ rule aggregate_counts:
                 for line in fh:
                     line = line.strip()
                     if line.startswith("Input:"):
-                        match = re.search(r"Input:\s*([0-9,]+)\s+reads\s+([0-9,]+)\s+bases", line)
+                        match = re.search(r"Input:\s*([0-9,]+)\s+reads(?:\s*\([^)]*\))?\s+([0-9,]+)\s+bases", line)
                         if match:
                             input_reads = int(match.group(1).replace(",", ""))
                             input_bases = int(match.group(2).replace(",", ""))
                     elif line.startswith("Output:"):
-                        match = re.search(r"Output:\s*([0-9,]+)\s+reads\s+([0-9,]+)\s+bases", line)
+                        match = re.search(r"Output:\s*([0-9,]+)\s+reads(?:\s*\([^)]*\))?\s+([0-9,]+)\s+bases", line)
                         if match:
                             output_reads = int(match.group(1).replace(",", ""))
                             output_bases = int(match.group(2).replace(",", ""))
@@ -661,12 +661,12 @@ rule aggregate_counts:
                 for line in fh:
                     line = line.strip()
                     if line.startswith("Input:"):
-                        match = re.search(r"Input:\s*([0-9,]+)\s+reads\s+([0-9,]+)\s+bases", line)
+                        match = re.search(r"Input:\s*([0-9,]+)\s+reads(?:\s*\([^)]*\))?\s+([0-9,]+)\s+bases", line)
                         if match:
                             input_reads = int(match.group(1).replace(",", ""))
                             input_bases = int(match.group(2).replace(",", ""))
                     elif line.startswith("Result:"):
-                        match = re.search(r"Result:\s*([0-9,]+)\s+reads\s+([0-9,]+)\s+bases", line)
+                        match = re.search(r"Result:\s*([0-9,]+)\s+reads(?:\s*\([^)]*\))?\s+([0-9,]+)\s+bases", line)
                         if match:
                             result_reads = int(match.group(1).replace(",", ""))
                             result_bases = int(match.group(2).replace(",", ""))

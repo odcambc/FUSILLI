@@ -51,7 +51,7 @@ qc:
   run_qc: true
   baseline_condition: 'pBabe'
 
-mem_fastqc: 4000
+mem_fastqc: 8000
 
 pipeline:
   show_progress: true
@@ -59,7 +59,7 @@ pipeline:
 
 resources:
   memory_mb: 16000
-  threads: 16
+  threads: 12
 
 quick:
   enabled: false
