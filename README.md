@@ -12,8 +12,6 @@ FUSILLI is a tool for analyzing mutational scanning data from fusion protein lib
 
 FUSILLI processes short-read sequencing data from libraries of fusion constructs (e.g., kinase domain fusions) and produces counts of detected variants-specific fusion breakpoints. It's intended to be used in DMS-type experiments where counting the number and identity of specific variants is the primary goal.
 
-### How It Works
-
 ```(markdown)
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                        FUSION LIBRARY STRUCTURE                         │
@@ -32,37 +30,78 @@ FUSILLI processes short-read sequencing data from libraries of fusion constructs
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-The pipeline:
-
-1. **Preprocesses** reads (adapter trimming, quality filtering, read merging)
-2. **Identifies** all possible breakpoint sequences for your fusion library
-3. **Detects** fusions by string matching breakpoint k-mers against reads
-4. **Counts** occurrences of each fusion variant per sample
-5. **Generates** a summary of the counts across all samples, statistics, and reproducibility metadata
-
 ---
 
 ## Quick Start
 
-### Installation
-
 ```bash
-# Clone the repository
 git clone https://github.com/odcambc/FUSILLI
 cd FUSILLI
-
-# Create conda environment
 conda env create --file fusilli_env.yaml
 conda activate FUSILLI
 ```
 
-> **Note for Apple Silicon Macs:** It may be necessary to use Rosetta emulation to build the conda environment:
->
-> ```bash
-> CONDA_SUBDIR=osx-64 conda env create --file fusilli_env.yaml
-> ```
+If the environment installed and activated properly, edit the configuration files in the config directory as needed. Then run the pipeline with:
 
-### Configuration
+```bash
+snakemake -s workflow/Snakefile --software-deployment-method conda --cores 16
+```
+
+## Installation
+
+### Install from GitHub
+
+Download or fork this repository and edit the configuration files as needed.
+
+### Install from Docker
+
+A docker image is not currently available, but is planned for the future.
+
+## Configuration
+
+The details of an experiment need to be specified in a configuration file that defines parameters, a domains file that contains information about the different domains in the library, and an associated experiment file that details the experimental setup.
+
+The configuration file is a YAML file: details are included in the example file config/test.yaml and in the schema file workflow/schemas/config.schema.yaml.
+
+The domains file file is a CSV file that contains information about the different domains in the library: this is necessary to identify the sequences of fusions. Details are included in the example file config/test_fusions.csv and in the schema file workflow/schemas/domains.schema.yaml.
+
+The experiment file is a CSV file that relates experimental conditions, replicates, and time points to sequencing files: details are included in the example file config/test.csv and in the schema file workflow/schemas/experiments.schema.yaml.
+
+Additionally, a reference fasta file is required for generating the fusion sequences. This should be placed in the references directory, and the path to the file should be specified in the config file. An example file is included in references/fusion_sequences.fasta.
+
+### Working directory structure
+
+```(markdown)
+├── workflow
+│   ├── rules
+│   ├── envs
+│   ├── scripts
+│   ├── schemas
+│   │   ├── config.schema.yaml
+│   │   ├── domains.schema.yaml
+│   │   └── experiments.schema.yaml
+│   └── Snakefile
+├── config
+│   ├── test.yaml
+│   ├── test.csv
+│   ├── test_fusions.csv
+├── logs
+│   └── ...
+├── references
+│   └── kinase_sequences.fasta
+├── results
+│   └── ...
+├── stats
+│   └── ...
+├── tests
+│   └── ...
+├── resources
+│   ├── adapters.fa
+│   ├── sequencing_artifacts.fa.gz
+│   └── ...
+```
+
+### Configuration details
 
 1. **Edit the main config file** (`config/config.yaml`):
    - Set `experiment` name
@@ -102,18 +141,16 @@ conda activate FUSILLI
    - FASTA file with sequences for anchor and all partners
    - Sequence names must match `partner_name` in `fusion_partners.csv`
 
-> **Note:** The pipeline expects paired-end data. Single-end data is currently not supported.
-
-### Run
+### Run the pipeline
 
 ```bash
 # Dry run (see what will execute)
 snakemake -s workflow/Snakefile -n
 
-# Full run
+# Full run with 16 cores
 snakemake -s workflow/Snakefile --cores 16
 
-# With conda environment management
+# Full run using conda for environment management
 snakemake -s workflow/Snakefile --software-deployment-method conda --cores 16
 ```
 
@@ -192,6 +229,14 @@ quick:
 ## Output Files
 
 ```(markdown)
+benchmarks/{experiment}/           # Benchmarking: time and usage of each rule
+└── ...
+
+logs/{experiment}/                 # Logs from each rule
+├── bbduk/
+├── bbmerge/
+└── ...
+
 results/{experiment}/
 ├── references/
 │   ├── breakpoint_sequences.csv   # All possible breakpoint k-mers
@@ -239,7 +284,7 @@ The pipeline generates comprehensive QC metrics files in `results/{experiment}/`
 
 - **`partner_counts_summary.csv`**: Partner domain detection counts across samples
 
-All metrics are automatically aggregated into a comprehensive MultiQC report at `stats/{experiment}/{experiment}_multiqc.html`. See the [QC Metrics Interpretation Guide](docs/QC_METRICS_GUIDE.md) for detailed information on interpreting these metrics.
+All metrics are automatically aggregated into a comprehensive MultiQC report at `stats/{experiment}/{experiment}_multiqc.html`.
 
 ### Fusion Counts Format
 
@@ -329,44 +374,7 @@ snakemake -s workflow/Snakefile results/{experiment}/repro/metadata.json --cores
 
 ---
 
-## Advanced Usage
-
-### Running Specific Targets
-
-```bash
-# Generate reference files only (validate config)
-snakemake -s workflow/Snakefile references --cores 1
-
-# Generate counts without QC
-snakemake -s workflow/Snakefile counts_only --cores 16
-
-# Generate summary only (if counts exist)
-snakemake -s workflow/Snakefile summary --cores 1
-```
-
-### Standalone Script Usage
-
-The core scripts can be used outside Snakemake:
-
-```bash
-# Generate breakpoint sequences
-python workflow/scripts/fusion_sequences.py \
-    --sequences references/kinase_sequences.fasta \
-    --partners config/fusion_partners.csv \
-    --anchor Met_WT \
-    --linker GGGAGC \
-    --window 12 \
-    --output-breakpoints breakpoints.csv \
-    --output-ends ends.csv
-
-# Run string matching
-python workflow/scripts/string_matcher.py \
-    --input reads.fastq.gz \
-    --breakpoints breakpoints.csv \
-    --ends ends.csv \
-    --output counts.csv \
-    --progress
-```
+## Optional Modes
 
 ### Unmerged Read Processing
 
@@ -393,13 +401,6 @@ When enabled, the pipeline will:
    - `unmerged_counts_summary.csv` - Combined R1 and R2 counts per sample
    - `unmerged_partner_counts_summary.csv` - Partner-level unmerged counts
 
-**Important notes:**
-
-- Unmerged counts are **always kept separate** from merged counts - they are never combined
-- Empty unmerged files (when all reads merge successfully) are handled gracefully
-- The same detection parameters (`breakpoint_window`, `kmer_size`, etc.) are used for both merged and unmerged detection
-- Processing unmerged reads increases computational time and storage requirements
-
 ### Performance Tuning
 
 - **Memory:** Adjust `resources.memory_mb` in config
@@ -409,100 +410,21 @@ When enabled, the pipeline will:
 
 ---
 
-## Troubleshooting
+## Limitations
 
-### Common Issues
+There are currently some limitations that are worth noting:
 
-#### "Partner X not found in sequences"
-
-- Ensure partner name in CSV exactly matches FASTA header
-- Check for trailing whitespace
-
-#### "Sequence length mismatch"
-
-- Update `sequence_length` in partners CSV to match actual FASTA sequence
-
-#### *Slow performance
-
-- Install `pyfastx` for faster FASTQ parsing: `pip install pyfastx`
-- Reduce `breakpoint_window` if appropriate for your read length
-
-### Getting Help
-
-For issues, please open a GitHub issue with:
-
-1. Your config file (anonymized if needed)
-2. The error message
-3. Snakemake version (`snakemake --version`)
-
----
+- The pipeline is not designed for long-read data. We intend to support this in the future but it is not currently implemented.
+- The pipeline expects paired-end data. Single-end short-read data is currently not supported.
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
-
-## Citation
-
-If you use FUSILLI in your research, please cite:
-> [Citation to be added upon publication]
-
-## Quality Control & MultiQC
-
-FUSILLI includes comprehensive quality control (QC) metrics that are automatically aggregated into a MultiQC report. The QC system tracks:
-
-1. **Standard Tool Metrics** (FastQC, BBDuk, BBMerge):
-   - Read quality scores and distributions
-   - Adapter contamination
-   - Read length distributions
-   - Merge rates and insert sizes
-   - Preprocessing retention rates
-
-2. **FUSILLI-Specific Metrics**:
-   - **Detection Performance**: Efficiency of fusion detection, read utilization
-   - **Library Representation**: Coverage of expected variants, breakpoints, and partners
-   - **Library Diversity**: Shannon/Simpson diversity indices, evenness, top N fractions
-   - **Preprocessing Efficiency**: Read retention through each preprocessing step
-   - **Partner Detection**: Partner domain detection across samples
-
-The MultiQC report (`stats/{experiment}/{experiment}_multiqc.html`) provides interactive visualizations and summary tables for all metrics, enabling easy cross-sample comparison and quality assessment.
-
-### MultiQC Custom Modules Package
-
-FUSILLI's custom MultiQC modules are packaged separately as `fusilli-multiqc`, a pip-installable Python package available from a Git repository (and will be published to PyPI). This package contains four custom modules:
-
-- **Detection Metrics** (`fusilli_detection`): Detection efficiency, library coverage, and sensitivity analysis
-- **Diversity Metrics** (`fusilli_diversity`): Shannon/Simpson diversity indices, evenness, and variant distribution
-- **Preprocessing Metrics** (`fusilli_preprocessing`): Read retention through preprocessing steps
-- **Partner Detection** (`fusilli_partners`): Partner domain detection heatmaps and coverage
-
-The package is automatically installed when setting up the conda environment via `workflow/envs/qc.yaml`. For manual installation or use in other projects:
-
-```bash
-# Install from Git repository (development/testing)
-pip install git+https://github.com/user/fusilli-multiqc.git@main
-
-# Install from PyPI (production, once published)
-pip install fusilli-multiqc>=1.0.0
-```
-
-The package registers MultiQC entry points automatically, so modules are discovered when MultiQC runs. No additional configuration is needed beyond installing the package.
-
-For detailed guidance on interpreting QC metrics, see the [QC Metrics Interpretation Guide](docs/QC_METRICS_GUIDE.md).
-
-## Documentation
-
-Additional documentation is available in the `docs/` directory:
-
-- **[Architecture](docs/ARCHITECTURE.md)** - System architecture and design decisions
-- **[Technical Patterns](docs/TECHNICAL.md)** - Coding conventions and best practices
-- **[Project Management](docs/PROJECT_MANAGEMENT.md)** - Branch management, task design, and workflow organization
-- **[QC Metrics Guide](docs/QC_METRICS_GUIDE.md)** - Guide to interpreting QC metrics and MultiQC reports
+This is licensed under the MIT license. See the [LICENSE](LICENSE) file for details.
 
 ## Contributing
 
-Contributions welcome! Please submit issues or pull requests on GitHub.
+Contributions and feedback are welcome. Please submit an issue or pull request.
 
-Before contributing, please review:
+## Getting help
 
-- [Technical Patterns](docs/TECHNICAL.md) for coding conventions
-- [Project Management Guide](docs/PROJECT_MANAGEMENT.md) for workflow and task organization
+For any issues, please open an issue on the GitHub repository.

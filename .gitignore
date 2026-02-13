@@ -7,6 +7,7 @@ ref/
 results/
 test/
 docs/
+tasks/
 .snakemake
 .vscode/
 *.pyc
