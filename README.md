@@ -310,17 +310,23 @@ A fusion ID like `TPR_126_Met_WT` means:
 
 ### Breakpoint Sequences
 
-For each breakpoint, the pipeline generates a k-mer spanning the junction:
+For each breakpoint, the pipeline generates a k-mer spanning the junction to look for in the reads:
 
 ```(markdown)
 Partner sequence:  ...ATGCTAGCTAGC[BREAKPOINT]
 Linker:                            GGGAGC
 Anchor sequence:                          ATGAAAAAG...
 
-Breakpoint k-mer (window=12):
-              GCTAGCGGGAGCATGAAAAA
-              ←─12nt─→←─12nt─→
+Breakpoint k-mer (window=8):
+              TGCTAGCGGGAGCATGAAAAA
+              ←─8 nt─→     ←─8 nt─→
 ```
+
+Changing the `breakpoint_window` configuration will change the size of the k-mer generated, with a larger window allowing for more specific breakpoint detection but potentially missing reads that don't span the full window. The length of the k-mer is twice the `breakpoint_window` value plus the length of the linker sequence. In the above example, with a `breakpoint_window` of 8 and a linker sequence of `GGGAGC`, the k-mer length is 16 + 6 = 22.
+
+By default, the window is set to 12 nt. Depending on your particular sequencing data and library construction, you may need to adjust this value. 12 nt is a reasonable default for our libraries, but consider how your library is constructed.
+
+In general, a larger window will increase specificity but decrease sensitivity. In our experience, within a reasonable range, the window size is not particularly critical to the accuracy of the results.
 
 ## Reproducibility
 
