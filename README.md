@@ -4,8 +4,6 @@
 
 A Snakemake pipeline for analyzing mutational scanning data from fusion protein libraries.
 
----
-
 ## Overview
 
 FUSILLI is a tool for analyzing mutational scanning data from fusion protein libraries. It was designed for a project building off work studying MET kinase domain fusions and exon skipping in disrupting signalling pathways using deep mutational scanning (DMS) ([Estevam et al., 2024](https://elifesciences.org/articles/91619), [Estevam et al., 2025](https://elifesciences.org/articles/101882)). This tool was created to support the analysis of a library consisting of a variety of domains (TPR, CCDC6, etc.) fused to a variably truncated anchor domain (e.g, MET kinase).
@@ -29,8 +27,6 @@ FUSILLI processes short-read sequencing data from libraries of fusion constructs
 │                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
-
----
 
 ## Quick Start
 
@@ -154,8 +150,6 @@ snakemake -s workflow/Snakefile --cores 16
 snakemake -s workflow/Snakefile --software-deployment-method conda --cores 16
 ```
 
----
-
 ## Configuration Reference
 
 ### Main Config (`config/config.yaml`)
@@ -224,8 +218,6 @@ quick:
 | `include`         | Yes      | `true` or `false`          |
 | `description`     | No       | Human-readable description |
 
----
-
 ## Output Files
 
 ```(markdown)
@@ -261,7 +253,7 @@ stats/{experiment}/
 
 ### QC Metrics Files
 
-The pipeline generates comprehensive QC metrics files in `results/{experiment}/`:
+The pipeline generates QC metrics files in `results/{experiment}/`:
 
 - **`fusion_qc_metrics.csv`**: Per-sample fusion detection metrics including:
   - Detection efficiency (reads matched / reads processed)
@@ -284,7 +276,7 @@ The pipeline generates comprehensive QC metrics files in `results/{experiment}/`
 
 - **`partner_counts_summary.csv`**: Partner domain detection counts across samples
 
-All metrics are automatically aggregated into a comprehensive MultiQC report at `stats/{experiment}/{experiment}_multiqc.html`.
+All metrics are automatically aggregated into a MultiQC report at `stats/{experiment}/{experiment}_multiqc.html`.
 
 ### Fusion Counts Format
 
@@ -304,9 +296,7 @@ The `fusion_id` encodes:
 
 **Note:** The breakpoint position is relative to whichever component is truncated (as specified by `fusion_library.anchor.truncated_component` in the config). When `truncated_component: 'anchor'`, the breakpoint is measured from the anchor start. When `truncated_component: 'partner'`, it's measured from the partner start.
 
----
-
-## Understanding Breakpoints
+## Breakpoint Conventions
 
 ### Naming Convention
 
@@ -332,8 +322,6 @@ Breakpoint k-mer (window=12):
               ←─12nt─→←─12nt─→
 ```
 
----
-
 ## Reproducibility
 
 The pipeline automatically captures reproducibility metadata for each run, stored in `results/{experiment}/repro/`. This includes:
@@ -342,19 +330,6 @@ The pipeline automatically captures reproducibility metadata for each run, store
 - **metadata.txt**: Human-readable metadata with command-line invocation, versions, and OS info
 - **conda-env.yaml**: Conda environment export (if conda is available)
 - **pip-freeze.txt**: Pip freeze output (if pip is available)
-
-### Viewing Reproducibility Information
-
-```bash
-# View human-readable metadata
-cat results/{experiment}/repro/metadata.txt
-
-# View conda environment (if available)
-cat results/{experiment}/repro/conda-env.yaml
-
-# View pip packages (if available)
-cat results/{experiment}/repro/pip-freeze.txt
-```
 
 ### Regenerating Reproducibility Files
 
@@ -371,8 +346,6 @@ Or regenerate as part of the pipeline:
 # Regenerate reproducibility files only
 snakemake -s workflow/Snakefile results/{experiment}/repro/metadata.json --cores 1
 ```
-
----
 
 ## Optional Modes
 
@@ -407,8 +380,6 @@ When enabled, the pipeline will:
 - **Threads:** Adjust `resources.threads` in config
 - **Progress:** Disable with `pipeline.show_progress: false` for batch jobs
 - **QC:** `qc.run_qc` defaults to `true`; adjust `mem_fastqc` if needed.
-
----
 
 ## Limitations
 
