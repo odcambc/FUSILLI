@@ -1,0 +1,63 @@
+# Configuration for DMS analysis
+# This file is validated against the schema in "schemas/config.schema.yaml"
+
+# This is the name of the experiment. This is used to name the output files and 
+# results directories, so it must be unique.
+experiment: 'test_data'
+
+# -----------------------------------------------------------------------------
+# Path definitions:
+# These paths are relative to the base snakemake invocation directory,
+# typically the root of the git repository. 
+# data_dir: Directory containing the raw sequencing data. Note: _all_ reads
+#           are expected in this directory, not as subfolders!
+# ref_dir: Directory containing the reference fasta files.
+# -----------------------------------------------------------------------------
+
+data_dir: 'data/'
+ref_dir: 'references'
+
+# -----------------------------------------------------------------------------
+# File definitions:
+# These files are relative to the base snakemake invocation directory, as well.
+# experiment_file: CSV file containing the experiment metadata for describing
+#                  the experiment structure and the mapping to each file.
+#                  This file must contain the following columns:
+#                     sample: Unique sample name
+#                     file: File name.
+#
+#                   This file is validated against the schema in "schemas/experiments.schema.yaml"
+#
+# reference: Reference fasta file name. This must be a nucleotide fasta file!
+# paired_reads: Whether or not to use unpaired reads. This is helpful to avoid spurious breakpoints.
+# -----------------------------------------------------------------------------
+experiment_file: 'config/test.csv'
+fusion_list: 'config/test_fusions.csv'
+
+reference: fusion_sequences.fasta
+
+paired_reads: true
+
+fusion_target: 'target'
+
+baseline_condition: 'baseline'
+
+run_qc: false
+
+# -----------------------------------------------------------------------------
+# Analysis parameters:
+#
+# ----------------------------------------------------------------------------- 
+kmers: 15
+sam: "1.3"
+mem: 16
+min_q: 30
+mem_fastqc: 16
+
+samtools_local: false
+
+
+adapters: "resources/adapters.fa"
+contaminants: 
+  - "resources/sequencing_artifacts.fa.gz"
+  - "resources/phix174_ill.ref.fa.gz"

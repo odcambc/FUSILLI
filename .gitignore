@@ -7,8 +7,9 @@ ref/
 results/
 test/
 docs/
-tasks/
 .snakemake
 .vscode/
 *.pyc
-.mypy_cache
+.mypy_cache/
+.pytest_cache/
+__pycache__/
