@@ -545,8 +545,8 @@ def test_full_run_small_dataset(tmp_path):
     partners_path = tmp_path / "partners.csv"
     with partners_path.open("w", newline="") as fh:
         writer = csv.writer(fh)
-        writer.writerow(["partner_name", "sequence_length", "include", "description"])
-        writer.writerow(["Partner", len(sequences["Partner"]), "true", ""])
+        writer.writerow(["partner_name", "include", "description"])
+        writer.writerow(["Partner", "true", ""])
 
     unfused_path = tmp_path / "unfused.csv"
     with unfused_path.open("w", newline="") as fh:
@@ -668,8 +668,8 @@ def test_snakemake_counts_only(tmp_path):
     partners_path = tmp_path / "partners.csv"
     with partners_path.open("w", newline="") as fh:
         writer = csv.writer(fh)
-        writer.writerow(["partner_name", "sequence_length", "include", "description"])
-        writer.writerow(["Partner", len(sequences["Partner"]), "true", ""])
+        writer.writerow(["partner_name", "include", "description"])
+        writer.writerow(["Partner", "true", ""])
 
     unfused_path = tmp_path / "unfused.csv"
     with unfused_path.open("w", newline="") as fh:
@@ -1356,8 +1356,8 @@ def test_snakemake_unmerged_detection(tmp_path):
     partners_path = tmp_path / "partners.csv"
     with partners_path.open("w", newline="") as fh:
         writer = csv.writer(fh)
-        writer.writerow(["partner_name", "sequence_length", "include", "description"])
-        writer.writerow(["Partner", len(sequences["Partner"]), "true", ""])
+        writer.writerow(["partner_name", "include", "description"])
+        writer.writerow(["Partner", "true", ""])
 
     samples_path = tmp_path / "samples.csv"
     with samples_path.open("w", newline="") as fh:
@@ -1530,8 +1530,8 @@ def test_snakemake_with_empty_unmerged_files(tmp_path):
     partners_path = tmp_path / "partners.csv"
     with partners_path.open("w", newline="") as fh:
         writer = csv.writer(fh)
-        writer.writerow(["partner_name", "sequence_length", "include", "description"])
-        writer.writerow(["Partner", len(sequences["Partner"]), "true", ""])
+        writer.writerow(["partner_name", "include", "description"])
+        writer.writerow(["Partner", "true", ""])
 
     samples_path = tmp_path / "samples.csv"
     with samples_path.open("w", newline="") as fh:
@@ -1701,8 +1701,8 @@ def test_snakemake_missing_unmerged_files_fails(tmp_path):
     partners_path = tmp_path / "partners.csv"
     with partners_path.open("w", newline="") as fh:
         writer = csv.writer(fh)
-        writer.writerow(["partner_name", "sequence_length", "include", "description"])
-        writer.writerow(["Partner", len(sequences["Partner"]), "true", ""])
+        writer.writerow(["partner_name", "include", "description"])
+        writer.writerow(["Partner", "true", ""])
 
     samples_path = tmp_path / "samples.csv"
     with samples_path.open("w", newline="") as fh:
@@ -1878,8 +1878,8 @@ def test_snakemake_full_pipeline_with_multiqc(tmp_path):
     partners_path = tmp_path / "partners.csv"
     with partners_path.open("w", newline="") as fh:
         writer = csv.writer(fh)
-        writer.writerow(["partner_name", "sequence_length", "include", "description"])
-        writer.writerow(["Partner", len(sequences["Partner"]), "true", ""])
+        writer.writerow(["partner_name", "include", "description"])
+        writer.writerow(["Partner", "true", ""])
 
     samples_path = tmp_path / "samples.csv"
     with samples_path.open("w", newline="") as fh:

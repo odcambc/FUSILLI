@@ -123,13 +123,12 @@ Additionally, a reference fasta file is required for generating the fusion seque
 3. **Create your partners file** (`config/fusion_partners.csv`):
 
    ```csv
-   partner_name,sequence_length,include,description
-   TPR,426,true,TPR-MET fusion partner
-   CCDC6,303,true,RET fusion partner
+   partner_name,include,description
+   TPR,true,TPR-MET fusion partner
+   CCDC6,true,RET fusion partner
    ```
 
-   - `partner_name`: Must match FASTA header
-   - `sequence_length`: Length in nucleotides
+   - `partner_name`: Must match FASTA header (sequence length is derived from the reference)
    - `include`: Whether to include the partner in the analysis (boolean)
    - `description`: Human-readable description (optional)
 
@@ -211,12 +210,11 @@ quick:
 
 ### Partners File (`config/fusion_partners.csv`)
 
-| Column            | Required | Description                |
-| ----------------- | -------- | -------------------------- |
-| `partner_name`    | Yes      | Must match FASTA header    |
-| `sequence_length` | Yes      | Length in nucleotides      |
-| `include`         | Yes      | `true` or `false`          |
-| `description`     | No       | Human-readable description |
+| Column         | Required | Description                                           |
+| --------------- | -------- | ----------------------------------------------------- |
+| `partner_name` | Yes      | Must match FASTA header (length derived from reference) |
+| `include`      | Yes      | `true` or `false`                                    |
+| `description`  | No       | Human-readable description                            |
 
 ## Output Files
 

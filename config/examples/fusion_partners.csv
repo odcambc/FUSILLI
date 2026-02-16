@@ -4,21 +4,19 @@
 # This file defines the fusion partner domains for breakpoint detection.,,,
 #,,,
 # COLUMNS:,,,
-#   partner_name    - Unique identifier matching sequence name in FASTA file,,,
-#   sequence_length - Length of the coding sequence in nucleotides,,,
-#                     (used to verify full-length detection),,,
-#   include         - Whether to include this partner in analysis (true/false),,,
-#   description     - Human-readable description (optional, for documentation),,
+#   partner_name - Unique identifier matching sequence name in FASTA file,,,
+#   include      - Whether to include this partner in analysis (true/false),,,
+#   description  - Human-readable description (optional, for documentation),,,
 #,,,
 # NOTES:,,,
-# - The anchor domain (e.g., Met_WT) should NOT be listed here,,
-# - Sequence lengths should match the actual sequences in the FASTA file,,,
+# - The anchor domain (e.g., Met_WT) should NOT be listed here,,,
+# - Sequence length is derived from the reference FASTA (partner_name = header),,,
 # - Set 'include: false' to temporarily exclude a partner without deleting it,,,
 #,,,
 # =============================================================================,,,
-partner_name,sequence_length,include,description
-TPR,426,TRUE,Translocated promoter region - TPR-MET fusion partner
-CCDC6,303,TRUE,Coiled-coil domain containing 6
-CAPZA2,585,TRUE,Capping actin protein of muscle Z-line subunit alpha 2
-C8orf34,216,TRUE,Chromosome 8 open reading frame 34
-BAIAP2L1,954,TRUE,BAR/IMD domain containing adaptor protein 2 like 1
+partner_name,include,description
+TPR,TRUE,Translocated promoter region - TPR-MET fusion partner
+CCDC6,TRUE,Coiled-coil domain containing 6
+CAPZA2,TRUE,Capping actin protein of muscle Z-line subunit alpha 2
+C8orf34,TRUE,Chromosome 8 open reading frame 34
+BAIAP2L1,TRUE,BAR/IMD domain containing adaptor protein 2 like 1

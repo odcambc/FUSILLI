@@ -109,13 +109,13 @@ def fasta_file(tmp_path, test_sequences):
 
 @pytest.fixture
 def partners_csv(tmp_path, test_partners):
-    """Create a temporary partners CSV file."""
+    """Create a temporary partners CSV file (sequence_length derived from reference)."""
     csv_path = tmp_path / "partners.csv"
     with open(csv_path, 'w') as f:
-        f.write("partner_name,sequence_length,include,description\n")
+        f.write("partner_name,include,description\n")
         for name, config in test_partners.items():
             include_str = 'true' if config['include'] else 'false'
-            f.write(f"{name},{config['sequence_length']},{include_str},{config['description']}\n")
+            f.write(f"{name},{include_str},{config['description']}\n")
     return csv_path
 
 

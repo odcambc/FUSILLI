@@ -18,6 +18,7 @@ from utils import (
     parse_exon_partners_csv,
     parse_unfused_sequences_csv,
     parse_samples_csv,
+    resolve_partner_lengths_from_sequences,
     validate_nucleotide_sequence,
     validate_sequences_match_config,
     write_fasta,
@@ -140,47 +141,88 @@ class TestParsePartnersCsv:
     """Tests for partners CSV parsing."""
 
     def test_basic_parsing(self, tmp_path):
-        """Should parse partners CSV file."""
-        csv_content = """partner_name,sequence_length,include,description
-TPR,426,true,TPR fusion partner
-CCDC6,303,false,CCDC6 partner
+        """Should parse partners CSV file (no sequence_length column)."""
+        csv_content = """partner_name,include,description
+TPR,true,TPR fusion partner
+CCDC6,false,CCDC6 partner
 """
         csv_file = tmp_path / "partners.csv"
         csv_file.write_text(csv_content)
 
         partners = parse_partners_csv(csv_file)
 
+        assert partners['TPR']['include'] is True
+        assert partners['CCDC6']['include'] is False
+        assert 'sequence_length' not in partners['TPR']
+
+    def test_resolve_sets_sequence_length(self, tmp_path):
+        """resolve_partner_lengths_from_sequences sets length for included partners from reference."""
+        csv_content = """partner_name,include,description
+TPR,true,TPR fusion partner
+CCDC6,false,CCDC6 partner
+"""
+        csv_file = tmp_path / "partners.csv"
+        csv_file.write_text(csv_content)
+        partners = parse_partners_csv(csv_file)
+        sequences = {'TPR': 'A' * 426, 'CCDC6': 'G' * 303}
+
+        resolve_partner_lengths_from_sequences(partners, sequences)
+
         assert partners['TPR']['sequence_length'] == 426
-        assert partners['TPR']['include'] == True
-        assert partners['CCDC6']['include'] == False
+        # Excluded partners are not required to be in sequences; we don't set length for them
+        assert 'sequence_length' not in partners['CCDC6']
+
+    def test_resolve_raises_when_included_partner_missing_from_sequences(self):
+        """resolve_partner_lengths_from_sequences raises if included partner not in reference."""
+        partners = {
+            'TPR': {'include': True, 'description': ''},
+            'MISSING': {'include': True, 'description': ''},
+        }
+        sequences = {'TPR': 'ATGC'}
+
+        with pytest.raises(ValueError, match="Included partner.*not found in reference"):
+            resolve_partner_lengths_from_sequences(partners, sequences)
+
+    def test_resolve_skips_excluded_partners_not_in_sequences(self):
+        """Excluded partners not in sequences do not cause an error."""
+        partners = {
+            'IN_REF': {'include': True, 'description': ''},
+            'NOT_IN_REF': {'include': False, 'description': ''},
+        }
+        sequences = {'IN_REF': 'ATGC'}
+
+        resolve_partner_lengths_from_sequences(partners, sequences)
+
+        assert partners['IN_REF']['sequence_length'] == 4
+        assert 'sequence_length' not in partners['NOT_IN_REF']
 
     def test_include_variations(self, tmp_path):
         """Should handle various boolean representations."""
-        csv_content = """partner_name,sequence_length,include,description
-A,100,true,desc
-B,100,True,desc
-C,100,yes,desc
-D,100,1,desc
-E,100,false,desc
-F,100,no,desc
+        csv_content = """partner_name,include,description
+A,true,desc
+B,True,desc
+C,yes,desc
+D,1,desc
+E,false,desc
+F,no,desc
 """
         csv_file = tmp_path / "partners.csv"
         csv_file.write_text(csv_content)
 
         partners = parse_partners_csv(csv_file)
 
-        assert partners['A']['include'] == True
-        assert partners['B']['include'] == True
-        assert partners['C']['include'] == True
-        assert partners['D']['include'] == True
-        assert partners['E']['include'] == False
-        assert partners['F']['include'] == False
+        assert partners['A']['include'] is True
+        assert partners['B']['include'] is True
+        assert partners['C']['include'] is True
+        assert partners['D']['include'] is True
+        assert partners['E']['include'] is False
+        assert partners['F']['include'] is False
 
     def test_skips_comment_lines(self, tmp_path):
         """Should skip lines starting with #."""
         csv_content = """# This is a comment
-partner_name,sequence_length,include,description
-TPR,426,true,desc
+partner_name,include,description
+TPR,true,desc
 # Another comment
 """
         csv_file = tmp_path / "partners.csv"
@@ -193,8 +235,8 @@ TPR,426,true,desc
 
     def test_missing_required_columns(self, tmp_path):
         """Should raise ValueError for missing required columns."""
-        csv_content = """partner_name,include
-TPR,true
+        csv_content = """partner_name,description
+TPR,desc
 """
         csv_file = tmp_path / "partners.csv"
         csv_file.write_text(csv_content)

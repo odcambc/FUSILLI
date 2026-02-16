@@ -134,6 +134,9 @@ def parse_partners_csv(filepath: str | Path) -> dict[str, dict]:
     """
     Parse the fusion partners CSV file.
 
+    sequence_length is not read from the CSV; it must be set by
+    resolve_partner_lengths_from_sequences() after loading the reference FASTA.
+
     Args:
         filepath: Path to partners CSV file
 
@@ -141,11 +144,11 @@ def parse_partners_csv(filepath: str | Path) -> dict[str, dict]:
         Dictionary mapping partner names to their properties:
         {
             'partner_name': {
-                'sequence_length': int,
                 'include': bool,
                 'description': str
             }
         }
+        Keys 'sequence_length' are added by resolve_partner_lengths_from_sequences().
     """
     filepath = Path(filepath)
     if not filepath.exists():
@@ -159,7 +162,7 @@ def parse_partners_csv(filepath: str | Path) -> dict[str, dict]:
 
     reader = csv.DictReader(lines)
 
-    required_cols = {'partner_name', 'sequence_length', 'include'}
+    required_cols = {'partner_name', 'include'}
     if not required_cols.issubset(set(reader.fieldnames or [])):
         missing = required_cols - set(reader.fieldnames or [])
         raise ValueError(f"Missing required columns in partners file: {missing}")
@@ -170,12 +173,46 @@ def parse_partners_csv(filepath: str | Path) -> dict[str, dict]:
             continue
 
         partners[name] = {
-            'sequence_length': int(row['sequence_length']),
             'include': row['include'].lower() in ('true', 'yes', '1'),
             'description': row.get('description', '').strip()
         }
 
     return partners
+
+
+def resolve_partner_lengths_from_sequences(
+    partners: dict[str, dict],
+    sequences: dict[str, str]
+) -> None:
+    """
+    Set sequence_length for each partner from the reference sequences (in-place).
+
+    For every partner whose name is in sequences, sets
+    partners[name]['sequence_length'] = len(sequences[name]).
+    Included partners that are not in sequences have no length set; callers
+    should validate and raise if any included partner is missing.
+
+    Args:
+        partners: Partner config dict (modified in place).
+        sequences: Parsed FASTA sequences keyed by sequence name.
+
+    Raises:
+        ValueError: If any included partner is not in sequences (no reference
+            sequence to derive length from).
+    """
+    missing = []
+    for name, config in partners.items():
+        if not config.get('include'):
+            continue
+        if name in sequences:
+            config['sequence_length'] = len(sequences[name])
+        else:
+            missing.append(name)
+    if missing:
+        raise ValueError(
+            "Included partner(s) not found in reference sequences (partner_name "
+            "must match FASTA headers): " + ", ".join(sorted(missing))
+        )
 
 
 def parse_exon_partners_csv(

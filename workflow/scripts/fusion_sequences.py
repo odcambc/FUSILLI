@@ -50,6 +50,7 @@ try:
         parse_partners_csv,
         parse_unfused_sequences_csv,
         parse_exon_partners_csv,
+        resolve_partner_lengths_from_sequences,
         validate_nucleotide_sequence,
         validate_sequences_match_config,
         setup_logging,
@@ -61,6 +62,7 @@ except ImportError:
         parse_partners_csv,
         parse_unfused_sequences_csv,
         parse_exon_partners_csv,
+        resolve_partner_lengths_from_sequences,
         validate_nucleotide_sequence,
         validate_sequences_match_config,
         setup_logging,
@@ -944,6 +946,8 @@ def run_generation(
         except FileNotFoundError:
             if logger:
                 logger.warning(f"Exon partners file not found: {exon_partners_file}")
+
+    resolve_partner_lengths_from_sequences(partners, sequences)
 
     # Parse unfused sequences if provided
     unfused_config = {}
