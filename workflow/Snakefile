@@ -61,8 +61,8 @@ if PAIRED:
 else:
     raise ValueError(
         "Single-end mode is no longer supported in the main pipeline. "
-        "Set sequencing.paired=true or use the legacy rules in "
-        "workflow/legacy/rules."
+        "Re-implementation is planned for a future release. "
+        "Set sequencing.paired=true in config.yaml to enable paired-end processing."
     )
 
 # Fusion detection via string matching

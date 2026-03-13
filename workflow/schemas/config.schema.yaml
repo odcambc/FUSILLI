@@ -212,6 +212,12 @@ properties:
         description: "Name of baseline condition for comparisons"
         default: "baseline"
 
+      mem_fastqc:
+        type: integer
+        description: "Memory (MB) to allocate for FastQC"
+        default: 4000
+        minimum: 1000
+
   # -------------------------------------------------------------------------
   # Pipeline behavior
   # -------------------------------------------------------------------------

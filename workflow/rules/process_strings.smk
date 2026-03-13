@@ -593,21 +593,27 @@ rule aggregate_counts:
 
         sensitivity_rows = []
         for sample in sample_cols:
-            fastqc_zip = Path(f"stats/{EXPERIMENT}/fastqc/{sample}_R1.fastqc.zip")
-            lengths_info = _parse_fastqc_lengths(fastqc_zip)
-            lengths = lengths_info["lengths"] if lengths_info else None
-            mean_len = lengths_info["mean"] if lengths_info else 0.0
-
             threshold = 2 * BREAKPOINT_WINDOW
-            expected_fraction = _fraction_reads_long_enough(lengths, threshold)
+
+            # Parse FastQC data only if QC was actually run
+            if RUN_QC:
+                fastqc_zip = Path(f"stats/{EXPERIMENT}/fastqc/{sample}_R1.fastqc.zip")
+                lengths_info = _parse_fastqc_lengths(fastqc_zip)
+                lengths = lengths_info["lengths"] if lengths_info else None
+                mean_len = lengths_info["mean"] if lengths_info else 0.0
+                expected_fraction = _fraction_reads_long_enough(lengths, threshold)
+            else:
+                mean_len = 0.0
+                expected_fraction = 0.0
 
             matched_reads = int(json_df.loc[json_df["sample"] == sample, "matched_reads"].fillna(0).iloc[0]) if not json_df.empty else 0
             reads_processed = int(json_df.loc[json_df["sample"] == sample, "reads_processed"].fillna(0).iloc[0]) if not json_df.empty else 0
             expected_reads = reads_processed * expected_fraction
             sensitivity_index = (matched_reads / expected_reads) if expected_reads else 0.0
 
+            # Parse merge overlap stats if available
             ihist_path = Path(f"stats/{EXPERIMENT}/merge/{sample}.ihist")
-            ihist_info = _parse_ihist(ihist_path)
+            ihist_info = _parse_ihist(ihist_path) if ihist_path.exists() else None
             overlap_median = ihist_info["median"] if ihist_info else 0.0
 
             sensitivity_rows.append({
@@ -617,6 +623,7 @@ rule aggregate_counts:
                 "breakpoint_kmer_length": int(threshold),
                 "expected_detection_fraction": float(expected_fraction),
                 "sensitivity_index": float(sensitivity_index),
+                "qc_was_run": RUN_QC,
             })
 
         pd.DataFrame(sensitivity_rows).to_csv(output.sensitivity_metrics, index=False)

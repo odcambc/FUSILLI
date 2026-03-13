@@ -12,4 +12,3 @@ dependencies:
   - numpy
   - pyfastx
   - pyahocorasick
-  - cigar

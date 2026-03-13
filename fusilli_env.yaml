@@ -15,5 +15,4 @@ dependencies:
   - multiqc
   - samtools
   - pyfastx
-  - cigar
   - pyahocorasick

@@ -11,7 +11,6 @@ import warnings
 from pathlib import Path
 
 import pandas as pd
-from Bio import SeqIO
 from snakemake.utils import validate
 
 
@@ -159,16 +158,6 @@ def get_samples_by_condition(condition: str) -> list:
     return list(SAMPLES_DF[SAMPLES_DF["condition"] == condition]["sample"])
 
 
-def get_baseline_samples() -> list:
-    """Get samples with baseline condition."""
-    return get_samples_by_condition(BASELINE_CONDITION)
-
-
-def get_experiment_samples() -> list:
-    """Get non-baseline samples."""
-    return list(SAMPLES_DF[SAMPLES_DF["condition"] != BASELINE_CONDITION]["sample"])
-
-
 # =============================================================================
 # INPUT FILE FUNCTIONS
 # =============================================================================
@@ -236,15 +225,6 @@ def get_input_fastqs(wildcards):
 def get_reference_fasta():
     """Get full path to reference FASTA."""
     return f"{REF_DIR}/{SEQUENCES_FILE}"
-
-
-def get_reference_names() -> list:
-    """Get list of sequence names from reference FASTA."""
-    fasta_path = get_reference_fasta()
-    names = []
-    for record in SeqIO.parse(fasta_path, "fasta"):
-        names.append(record.id)
-    return names
 
 
 # =============================================================================
