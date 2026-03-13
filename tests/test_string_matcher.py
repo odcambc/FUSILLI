@@ -428,7 +428,6 @@ IIIIIIIIIIIIIIIIII
 
 
 # =============================================================================
-<<<<<<< HEAD
 # TEST: Unmerged Read Processing
 # =============================================================================
 
@@ -633,8 +632,6 @@ class TestUnmergedReadProcessing:
 
 
 # =============================================================================
-=======
->>>>>>> qc
 # TEST: Aho-Corasick Optimizations
 # =============================================================================
 
@@ -665,7 +662,6 @@ class TestAhoCorasickOptimizations:
         assert any(m[0] == 'TPR' and m[1] == 'TPR_126_Met_WT' for m in matches if isinstance(m, tuple))
 
     @pytest.mark.skipif(not HAS_AHOCORASICK, reason="pyahocorasick not available")
-<<<<<<< HEAD
     def test_build_partner_breakpoints_automata(self):
         """Should build separate automata per partner."""
         automata = build_partner_breakpoints_automata(TEST_BREAKPOINTS)
@@ -709,8 +705,6 @@ class TestAhoCorasickOptimizations:
         assert any(isinstance(m, tuple) and len(m) == 2 for m in matches)
 
     @pytest.mark.skipif(not HAS_AHOCORASICK, reason="pyahocorasick not available")
-=======
->>>>>>> qc
     def test_aho_matches_same_as_original(self):
         """Aho-Corasick implementation should produce same results as original."""
         read = "AAAA" + TEST_BREAKPOINTS['TPR']['TPR_126_Met_WT'] + "TTTT"
@@ -752,7 +746,6 @@ class TestAhoCorasickOptimizations:
 
         assert original_matches == aho_matches
 
-<<<<<<< HEAD
     @pytest.mark.skipif(not HAS_AHOCORASICK, reason="pyahocorasick not available")
     def test_aho_partner_hits_same_as_original(self):
         """Aho-Corasick partner hits should match original."""
@@ -850,8 +843,6 @@ class TestAhoCorasickOptimizations:
 
         assert set(original_matches) == set(aho_matches)
 
-=======
->>>>>>> qc
     def test_fallback_when_ahocorasick_unavailable(self, monkeypatch):
         """Should fall back to original implementation when pyahocorasick unavailable."""
         # Mock HAS_AHOCORASICK to be False
@@ -874,7 +865,6 @@ class TestAhoCorasickOptimizations:
             # Restore original value
             string_matcher.HAS_AHOCORASICK = original_has_aho
 
-<<<<<<< HEAD
     @pytest.mark.skipif(not HAS_AHOCORASICK, reason="pyahocorasick not available")
     def test_count_fusion_matches_uses_automata(self, tmp_path):
         """count_fusion_matches should use automata when available."""
@@ -921,7 +911,6 @@ IIIIIIIIIIIIIIIIII
         # Empty unfused
         empty_unfused = build_unfused_kmers_automata({})
         assert empty_unfused == {}
-
 
 # =============================================================================
 # TEST: Reverse Complement Memoization
@@ -1163,9 +1152,6 @@ IIIIIIIIIIIIIIIIII
         assert 'TPR_126_Met_WT' in matches1
         assert isinstance(matches2, (set, tuple))
         assert isinstance(hits, set)
-
-=======
->>>>>>> qc
 
 # =============================================================================
 # RUN TESTS
