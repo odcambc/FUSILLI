@@ -55,15 +55,20 @@ A docker image is not currently available, but is planned for the future.
 
 ## Configuration
 
-The details of an experiment need to be specified in a configuration file that defines parameters, a domains file that contains information about the different domains in the library, and an associated experiment file that details the experimental setup.
+The details of an experiment are specified in a YAML configuration file plus a few supporting data files:
 
-The configuration file is a YAML file: details are included in the example file config/test.yaml and in the schema file workflow/schemas/config.schema.yaml.
+- A main config file describing paths, library structure, and analysis options
+- A samples CSV describing experimental conditions and FASTQ file prefixes
+- A fusion partners CSV listing the partner domains to include
+- A reference FASTA containing the anchor and partner sequences
 
-The domains file file is a CSV file that contains information about the different domains in the library: this is necessary to identify the sequences of fusions. Details are included in the example file config/test_fusions.csv and in the schema file workflow/schemas/domains.schema.yaml.
+The active config schema is defined in `workflow/schemas/config.schema.yaml`.
 
-The experiment file is a CSV file that relates experimental conditions, replicates, and time points to sequencing files: details are included in the example file config/test.csv and in the schema file workflow/schemas/experiments.schema.yaml.
+Repository examples:
 
-Additionally, a reference fasta file is required for generating the fusion sequences. This should be placed in the references directory, and the path to the file should be specified in the config file. An example file is included in references/fusion_sequences.fasta.
+- `config/examples/config.yaml`: fully annotated template
+- `config/examples/test.yaml`: compact minimal example
+- `config/test.yaml`: repo-local smoke-test config using the fixtures under `tests/`
 
 ### Working directory structure
 
@@ -73,18 +78,16 @@ Additionally, a reference fasta file is required for generating the fusion seque
 │   ├── envs
 │   ├── scripts
 │   ├── schemas
-│   │   ├── config.schema.yaml
-│   │   ├── domains.schema.yaml
-│   │   └── experiments.schema.yaml
+│   │   └── config.schema.yaml
 │   └── Snakefile
 ├── config
+│   ├── config.yaml
 │   ├── test.yaml
-│   ├── test.csv
-│   ├── test_fusions.csv
+│   └── examples/
 ├── logs
 │   └── ...
 ├── references
-│   └── kinase_sequences.fasta
+│   └── kinase_sequences_hov.fasta
 ├── results
 │   └── ...
 ├── stats
@@ -183,6 +186,12 @@ detection:
 sequencing:
   paired: true
   min_quality: 30
+
+# QC settings
+qc:
+  run_qc: false
+  baseline_condition: 'baseline'
+  mem_fastqc: 4000
 
 # Progress reporting
 pipeline:
@@ -383,7 +392,7 @@ When enabled, the pipeline will:
 - **Memory:** Adjust `resources.memory_mb` in config
 - **Threads:** Adjust `resources.threads` in config
 - **Progress:** Disable with `pipeline.show_progress: false` for batch jobs
-- **QC:** `qc.run_qc` defaults to `true`; adjust `mem_fastqc` if needed.
+- **QC:** `qc.run_qc` defaults to `false`; adjust `qc.mem_fastqc` if needed.
 
 ## Limitations
 

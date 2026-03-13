@@ -50,8 +50,7 @@ preprocessing:
 qc:
   run_qc: true
   baseline_condition: 'pBabe'
-
-mem_fastqc: 8000
+  mem_fastqc: 8000
 
 pipeline:
   show_progress: true
@@ -63,5 +62,3 @@ resources:
 
 quick:
   enabled: false
-
-prefilter_fallback: false

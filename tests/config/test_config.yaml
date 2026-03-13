@@ -32,6 +32,7 @@ preprocessing:
 qc:
   run_qc: false
   baseline_condition: 'baseline'
+  mem_fastqc: 1000
 
 pipeline:
   show_progress: false

@@ -104,7 +104,7 @@ rule fastqc:
         "logs/{experiment}/fastqc/{sample}_{read}.log",
     threads: 8
     resources:
-        mem_mb=config.get("mem_fastqc", 4000),
+        mem_mb=MEM_FASTQC,
     conda:
         "../envs/qc.yaml",
     wrapper:

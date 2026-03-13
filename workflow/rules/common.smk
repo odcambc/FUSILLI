@@ -70,6 +70,12 @@ CONTAMINANTS = PREPROC_CONFIG.get("contaminants", [])
 QC_CONFIG = config.get("qc", {})
 RUN_QC = QC_CONFIG.get("run_qc", False)
 BASELINE_CONDITION = QC_CONFIG.get("baseline_condition", "baseline")
+MEM_FASTQC = QC_CONFIG.get("mem_fastqc", config.get("mem_fastqc", 4000))
+if "mem_fastqc" in config and "mem_fastqc" not in QC_CONFIG:
+    warnings.warn(
+        "Top-level 'mem_fastqc' is deprecated; move it under 'qc.mem_fastqc'.",
+        DeprecationWarning,
+    )
 
 # Pipeline behavior
 PIPELINE_CONFIG = config.get("pipeline", {})

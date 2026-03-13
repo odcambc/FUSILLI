@@ -146,9 +146,8 @@ qc:
 
   # Baseline condition name (for differential analysis)
   baseline_condition: 'baseline'
-
-# Memory for FastQC (required when qc.run_qc is true)
-mem_fastqc: 4000
+  # Memory for FastQC (MB)
+  mem_fastqc: 4000
 
 # -----------------------------------------------------------------------------
 # PIPELINE BEHAVIOR

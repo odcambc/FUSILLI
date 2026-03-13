@@ -1,63 +1,58 @@
-# Configuration for DMS analysis
-# This file is validated against the schema in "schemas/config.schema.yaml"
+# Minimal example configuration using the current schema
+#
+# This file is intended as a compact example. For a fully annotated template,
+# see `config/examples/config.yaml`.
 
-# This is the name of the experiment. This is used to name the output files and 
-# results directories, so it must be unique.
-experiment: 'test_data'
+experiment: 'example_test_run'
 
-# -----------------------------------------------------------------------------
-# Path definitions:
-# These paths are relative to the base snakemake invocation directory,
-# typically the root of the git repository. 
-# data_dir: Directory containing the raw sequencing data. Note: _all_ reads
-#           are expected in this directory, not as subfolders!
-# ref_dir: Directory containing the reference fasta files.
-# -----------------------------------------------------------------------------
-
-data_dir: 'data/'
+data_dir: '/path/to/test-fastqs'
 ref_dir: 'references'
+samples_file: 'config/examples/samples.csv'
 
-# -----------------------------------------------------------------------------
-# File definitions:
-# These files are relative to the base snakemake invocation directory, as well.
-# experiment_file: CSV file containing the experiment metadata for describing
-#                  the experiment structure and the mapping to each file.
-#                  This file must contain the following columns:
-#                     sample: Unique sample name
-#                     file: File name.
-#
-#                   This file is validated against the schema in "schemas/experiments.schema.yaml"
-#
-# reference: Reference fasta file name. This must be a nucleotide fasta file!
-# paired_reads: Whether or not to use unpaired reads. This is helpful to avoid spurious breakpoints.
-# -----------------------------------------------------------------------------
-experiment_file: 'config/test.csv'
-fusion_list: 'config/test_fusions.csv'
+fusion_library:
+  anchor:
+    name: 'Met_WT'
+    position: 'downstream'
+    truncated_component: 'anchor'
+  linker_sequence: 'GGGAGC'
+  partners_file: 'config/examples/fusion_partners.csv'
+  sequences_file: 'kinase_sequences_hov.fasta'
+  unfused_sequences_file: 'config/examples/kinase_unfused.csv'
 
-reference: fusion_sequences.fasta
+detection:
+  method: 'string'
+  breakpoint_window: 13
+  maintain_frame: true
+  kmer_size: 15
+  orientation_check: false
+  prefilter_fallback: false
+  unmerged_detection: false
 
-paired_reads: true
+sequencing:
+  paired: true
+  min_quality: 30
 
-fusion_target: 'target'
+preprocessing:
+  adapters: 'resources/adapters.fa'
+  contaminants:
+    - 'resources/sequencing_artifacts.fa.gz'
+    - 'resources/phix174_ill.ref.fa.gz'
 
-baseline_condition: 'baseline'
+qc:
+  run_qc: false
+  baseline_condition: 'baseline'
+  mem_fastqc: 4000
 
-run_qc: false
+pipeline:
+  show_progress: false
+  progress_interval: 10
 
-# -----------------------------------------------------------------------------
-# Analysis parameters:
-#
-# ----------------------------------------------------------------------------- 
-kmers: 15
-sam: "1.3"
-mem: 16
-min_q: 30
-mem_fastqc: 16
+resources:
+  memory_mb: 16000
+  threads: 8
 
-samtools_local: false
-
-
-adapters: "resources/adapters.fa"
-contaminants: 
-  - "resources/sequencing_artifacts.fa.gz"
-  - "resources/phix174_ill.ref.fa.gz"
+quick:
+  enabled: false
+  max_reads: 100000
+  fraction: null
+  seed: 1337

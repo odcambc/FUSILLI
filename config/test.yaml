@@ -1,63 +1,49 @@
-# Configuration for DMS analysis
-# This file is validated against the schema in "schemas/config.schema.yaml"
-
-# This is the name of the experiment. This is used to name the output files and 
-# results directories, so it must be unique.
-experiment: 'test_data'
-
-# -----------------------------------------------------------------------------
-# Path definitions:
-# These paths are relative to the base snakemake invocation directory,
-# typically the root of the git repository. 
-# data_dir: Directory containing the raw sequencing data. Note: _all_ reads
-#           are expected in this directory, not as subfolders!
-# ref_dir: Directory containing the reference fasta files.
-# -----------------------------------------------------------------------------
-
-data_dir: 'data/'
-ref_dir: 'references'
-
-# -----------------------------------------------------------------------------
-# File definitions:
-# These files are relative to the base snakemake invocation directory, as well.
-# experiment_file: CSV file containing the experiment metadata for describing
-#                  the experiment structure and the mapping to each file.
-#                  This file must contain the following columns:
-#                     sample: Unique sample name
-#                     file: File name.
+# Minimal repository-local test configuration
 #
-#                   This file is validated against the schema in "schemas/experiments.schema.yaml"
-#
-# reference: Reference fasta file name. This must be a nucleotide fasta file!
-# paired_reads: Whether or not to use unpaired reads. This is helpful to avoid spurious breakpoints.
-# -----------------------------------------------------------------------------
-experiment_file: 'config/test.csv'
-fusion_list: 'config/test_fusions.csv'
+# This file uses the current FUSILLI config schema and points at the small
+# fixtures under `tests/` so the pipeline can be smoke-tested locally.
 
-reference: fusion_sequences.fasta
+experiment: 'test_experiment'
 
-paired_reads: true
+data_dir: 'tests/data'
+ref_dir: 'tests/references'
+samples_file: 'tests/config/test_samples.csv'
 
-fusion_target: 'target'
+fusion_library:
+  anchor:
+    name: 'Met_WT'
+    position: 'downstream'
+    truncated_component: 'anchor'
+  linker_sequence: 'GGGAGC'
+  partners_file: 'tests/config/test_partners.csv'
+  sequences_file: 'test_sequences.fasta'
 
-baseline_condition: 'baseline'
+detection:
+  method: 'string'
+  breakpoint_window: 12
+  maintain_frame: true
+  kmer_size: 15
+  orientation_check: false
+  prefilter_fallback: false
+  unmerged_detection: false
 
-run_qc: false
+sequencing:
+  paired: true
+  min_quality: 30
 
-# -----------------------------------------------------------------------------
-# Analysis parameters:
-#
-# ----------------------------------------------------------------------------- 
-kmers: 15
-sam: "1.3"
-mem: 16
-min_q: 30
-mem_fastqc: 16
+preprocessing:
+  adapters: 'resources/adapters.fa'
+  contaminants: []
 
-samtools_local: false
+qc:
+  run_qc: false
+  baseline_condition: 'baseline'
+  mem_fastqc: 1000
 
+pipeline:
+  show_progress: false
+  progress_interval: 10
 
-adapters: "resources/adapters.fa"
-contaminants: 
-  - "resources/sequencing_artifacts.fa.gz"
-  - "resources/phix174_ill.ref.fa.gz"
+resources:
+  memory_mb: 4000
+  threads: 4
