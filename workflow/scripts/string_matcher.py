@@ -277,6 +277,8 @@ def build_domain_ends_automaton(domain_ends: dict[str, str]) -> "ahocorasick.Aut
     automaton = ahocorasick.Automaton()
     for domain_name, end_kmer in domain_ends.items():
         automaton.add_word(end_kmer, domain_name)
+    if not len(automaton):
+        return None
     automaton.make_automaton()
     return automaton
 
@@ -296,6 +298,8 @@ def build_breakpoints_automaton(breakpoints: dict[str, dict]) -> "ahocorasick.Au
         for fusion_id, bp_sequence in bp_map.items():
             # Store both partner and fusion_id as tuple in the value
             automaton.add_word(bp_sequence, (partner, fusion_id))
+    if not len(automaton):
+        return None
     automaton.make_automaton()
     return automaton
 
@@ -317,6 +321,8 @@ def build_partner_breakpoints_automata(
         automaton = ahocorasick.Automaton()
         for fusion_id, bp_sequence in bp_map.items():
             automaton.add_word(bp_sequence, fusion_id)
+        if not len(automaton):
+            continue
         automaton.make_automaton()
         automata[partner] = automaton
     return automata
@@ -340,6 +346,8 @@ def build_unfused_kmers_automata(
         for kmer, seq_names in kmer_map.items():
             # Store all sequence names that match this k-mer as a tuple (hashable)
             automaton.add_word(kmer, tuple(sorted(seq_names)))
+        if not len(automaton):
+            continue
         automaton.make_automaton()
         automata[kmer_len] = automaton
     return automata
