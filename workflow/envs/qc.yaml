@@ -10,4 +10,4 @@ dependencies:
   - snakemake-wrapper-utils>=0.6
   - pip
   - pip:
-    - -e /Users/bartleby/Projects/fusilli-multiqc
+    - git+https://github.com/odcambc/fusilli-multiqc.git

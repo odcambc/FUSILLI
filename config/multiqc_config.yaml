@@ -52,7 +52,11 @@ table_columns:
 # Note: FUSILLI custom modules are packaged separately as 'fusilli-multiqc'
 # and registered via setuptools entry points. They are automatically discovered
 # by MultiQC when the package is installed. No custom_modules configuration needed.
-# The package is installed via workflow/envs/qc.yaml from Git repository.
+# The package is installed via workflow/envs/qc.yaml from:
+#   https://github.com/odcambc/fusilli-multiqc
+# For local development, you can temporarily replace the pip dependency in
+# workflow/envs/qc.yaml with an editable install such as:
+#   -e /Users/bartleby/Projects/fusilli-multiqc
 
 # Default plot settings
 plot_settings:

@@ -909,122 +909,26 @@ def count_fusion_matches(
 ) -> dict[str, int] | tuple[dict[str, int], dict[str, int]]:
     """
     Count fusion breakpoint matches in a FASTQ file.
+
+    Convenience wrapper around count_all_matches for fusion-only matching
+    (no unfused k-mer detection).
     """
-    counts = defaultdict(int)
-    metrics = {
-        "reads_processed": 0,
-        "prefilter_pass_reads": 0,
-        "matched_reads": 0,
-        "total_matches": 0,
-        "unique_fusions_detected": 0,
-        "forward_match_events": 0,
-        "rc_match_events": 0,
-    }
-
-    estimated_total = estimate_read_count(fastq_file)
-
-    if logger:
-        logger.info(f"Processing: {fastq_file}")
-        logger.info(f"Estimated reads: {estimated_total:,}")
-        logger.info(f"Partners to search: {len(domain_ends)}")
-        total_breakpoints = sum(len(bps) for bps in breakpoints.values())
-        logger.info(f"Breakpoint sequences: {total_breakpoints:,}")
-
-    rc_domain_ends = None
-    rc_breakpoints = None
-    if orientation_check:
-        rc_domain_ends = {k: reverse_complement(v) for k, v in domain_ends.items()}
-        rc_breakpoints = {
-            partner: {fid: reverse_complement(seq) for fid, seq in bp_dict.items()}
-            for partner, bp_dict in breakpoints.items()
-        }
-
-    # Build Aho-Corasick automata if available
-    domain_ends_automaton = None
-    rc_domain_ends_automaton = None
-    breakpoints_automaton = None
-    rc_breakpoints_automaton = None
-    partner_breakpoints_automata = None
-    rc_partner_breakpoints_automata = None
-
-    if HAS_AHOCORASICK:
-        domain_ends_automaton = build_domain_ends_automaton(domain_ends)
-        if orientation_check and rc_domain_ends:
-            rc_domain_ends_automaton = build_domain_ends_automaton(rc_domain_ends)
-        breakpoints_automaton = build_breakpoints_automaton(breakpoints)
-        if orientation_check and rc_breakpoints:
-            rc_breakpoints_automaton = build_breakpoints_automaton(rc_breakpoints)
-        partner_breakpoints_automata = build_partner_breakpoints_automata(breakpoints)
-        if orientation_check and rc_breakpoints:
-            rc_partner_breakpoints_automata = build_partner_breakpoints_automata(rc_breakpoints)
-    elif logger:
-        logger.warning(
-            "pyahocorasick not available - using slower fallback implementation. "
-            "Install pyahocorasick for better performance: conda install -c conda-forge pyahocorasick"
-        )
-
-    progress = ProgressReporter(
-        total=estimated_total,
-        desc="Matching reads",
-        interval_pct=progress_interval,
-        enabled=show_progress,
-        logger=logger
+    fusion_counts, _unfused_counts, metrics = count_all_matches(
+        fastq_file=fastq_file,
+        breakpoints=breakpoints,
+        domain_ends=domain_ends,
+        unfused_kmers_by_len=None,
+        linker_sequence="",
+        show_progress=show_progress,
+        progress_interval=progress_interval,
+        logger=logger,
+        orientation_check=orientation_check,
+        prefilter_fallback=prefilter_fallback,
     )
 
-    read_count = 0
-    match_count = 0
-
-    for name, seq, qual in parse_fastq(fastq_file):
-        read_count += 1
-        metrics["reads_processed"] = read_count
-
-        # Compute reverse complement once per read if orientation_check is enabled
-        rc_seq = None
-        if orientation_check:
-            rc_seq = reverse_complement(seq)
-
-        matches, f_hit, rc_hit = find_matches_in_read(
-            seq,
-            domain_ends,
-            breakpoints,
-            orientation_check=orientation_check,
-            rc_domain_ends=rc_domain_ends,
-            rc_breakpoints=rc_breakpoints,
-            return_orientation=True,
-            prefilter_fallback=prefilter_fallback,
-            rc_sequence=rc_seq,
-            domain_ends_automaton=domain_ends_automaton,
-            rc_domain_ends_automaton=rc_domain_ends_automaton,
-            breakpoints_automaton=breakpoints_automaton,
-            rc_breakpoints_automaton=rc_breakpoints_automaton,
-            partner_breakpoints_automata=partner_breakpoints_automata,
-            rc_partner_breakpoints_automata=rc_partner_breakpoints_automata,
-        )
-
-        if matches:
-            match_count += len(matches)
-            metrics["prefilter_pass_reads"] += 1
-            metrics["matched_reads"] += 1
-            for fusion_id in matches:
-                counts[fusion_id] += 1
-            metrics["forward_match_events"] += int(f_hit) * len(matches)
-            metrics["rc_match_events"] += int(rc_hit) * len(matches)
-
-        progress.update()
-
-    progress.finish()
-
-    metrics["total_matches"] = match_count
-    metrics["unique_fusions_detected"] = len(counts)
-
-    if logger:
-        logger.info(f"Processed {read_count:,} reads")
-        logger.info(f"Found {match_count:,} total matches")
-        logger.info(f"Unique fusions detected: {len(counts)}")
-
     if return_metrics:
-        return dict(counts), metrics
-    return dict(counts)
+        return fusion_counts, metrics
+    return fusion_counts
 
 
 def count_all_matches(
