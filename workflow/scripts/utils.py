@@ -28,10 +28,9 @@ VALID_NUCLEOTIDES_AMBIGUOUS = set("ACGTNRYSWKMBDHV")
 # LOGGING
 # =============================================================================
 
+
 def setup_logging(
-    log_file: str | Path | None = None,
-    level: str = "INFO",
-    name: str = "fusilli"
+    log_file: str | Path | None = None, level: str = "INFO", name: str = "fusilli"
 ) -> logging.Logger:
     """
     Configure logging for FUSILLI scripts.
@@ -54,8 +53,7 @@ def setup_logging(
     console_handler = logging.StreamHandler(sys.stderr)
     console_handler.setLevel(logging.INFO)
     console_format = logging.Formatter(
-        '%(asctime)s | %(levelname)-8s | %(message)s',
-        datefmt='%H:%M:%S'
+        "%(asctime)s | %(levelname)-8s | %(message)s", datefmt="%H:%M:%S"
     )
     console_handler.setFormatter(console_format)
     logger.addHandler(console_handler)
@@ -65,7 +63,7 @@ def setup_logging(
         file_handler = logging.FileHandler(log_file)
         file_handler.setLevel(logging.DEBUG)
         file_format = logging.Formatter(
-            '%(asctime)s | %(levelname)-8s | %(name)s | %(message)s'
+            "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"
         )
         file_handler.setFormatter(file_format)
         logger.addHandler(file_handler)
@@ -76,6 +74,7 @@ def setup_logging(
 # =============================================================================
 # SEQUENCE I/O
 # =============================================================================
+
 
 def parse_fasta(filepath: str | Path) -> dict[str, str]:
     """
@@ -99,17 +98,17 @@ def parse_fasta(filepath: str | Path) -> dict[str, str]:
     current_name = None
     current_seq = []
 
-    with open(filepath, 'r') as f:
+    with open(filepath, "r") as f:
         for line_num, line in enumerate(f, 1):
             line = line.strip()
 
             if not line:
                 continue
 
-            if line.startswith('>'):
+            if line.startswith(">"):
                 # Save previous sequence
                 if current_name is not None:
-                    sequences[current_name] = ''.join(current_seq).upper()
+                    sequences[current_name] = "".join(current_seq).upper()
 
                 # Start new sequence
                 current_name = line[1:].split()[0]  # Take first word after >
@@ -125,7 +124,7 @@ def parse_fasta(filepath: str | Path) -> dict[str, str]:
 
     # Don't forget the last sequence
     if current_name is not None:
-        sequences[current_name] = ''.join(current_seq).upper()
+        sequences[current_name] = "".join(current_seq).upper()
 
     return sequences
 
@@ -156,33 +155,32 @@ def parse_partners_csv(filepath: str | Path) -> dict[str, dict]:
 
     partners = {}
 
-    with open(filepath, 'r') as f:
+    with open(filepath, "r") as f:
         # Skip comment lines
-        lines = [l for l in f if not l.strip().startswith('#')]
+        lines = [l for l in f if not l.strip().startswith("#")]
 
     reader = csv.DictReader(lines)
 
-    required_cols = {'partner_name', 'include'}
+    required_cols = {"partner_name", "include"}
     if not required_cols.issubset(set(reader.fieldnames or [])):
         missing = required_cols - set(reader.fieldnames or [])
         raise ValueError(f"Missing required columns in partners file: {missing}")
 
     for row in reader:
-        name = row['partner_name'].strip()
+        name = row["partner_name"].strip()
         if not name:
             continue
 
         partners[name] = {
-            'include': row['include'].lower() in ('true', 'yes', '1'),
-            'description': row.get('description', '').strip()
+            "include": row["include"].lower() in ("true", "yes", "1"),
+            "description": row.get("description", "").strip(),
         }
 
     return partners
 
 
 def resolve_partner_lengths_from_sequences(
-    partners: dict[str, dict],
-    sequences: dict[str, str]
+    partners: dict[str, dict], sequences: dict[str, str]
 ) -> None:
     """
     Set sequence_length for each partner from the reference sequences (in-place).
@@ -202,10 +200,10 @@ def resolve_partner_lengths_from_sequences(
     """
     missing = []
     for name, config in partners.items():
-        if not config.get('include'):
+        if not config.get("include"):
             continue
         if name in sequences:
-            config['sequence_length'] = len(sequences[name])
+            config["sequence_length"] = len(sequences[name])
         else:
             missing.append(name)
     if missing:
@@ -216,8 +214,7 @@ def resolve_partner_lengths_from_sequences(
 
 
 def parse_exon_partners_csv(
-    filepath: str | Path,
-    sequences: dict[str, str]
+    filepath: str | Path, sequences: dict[str, str]
 ) -> dict[str, dict]:
     """
     Parse exon-based partner CSV file and normalize sequence names.
@@ -235,17 +232,17 @@ def parse_exon_partners_csv(
 
     partners: dict[str, dict] = {}
 
-    with open(filepath, 'r') as f:
-        lines = [l for l in f if not l.strip().startswith('#')]
+    with open(filepath, "r") as f:
+        lines = [l for l in f if not l.strip().startswith("#")]
 
     reader = csv.DictReader(lines)
-    required_cols = {'domain_exon_bp', 'domain', 'exon'}
+    required_cols = {"domain_exon_bp", "domain", "exon"}
     if not required_cols.issubset(set(reader.fieldnames or [])):
         missing = required_cols - set(reader.fieldnames or [])
         raise ValueError(f"Missing required columns in exon partners file: {missing}")
 
     for row in reader:
-        raw_name = row['domain_exon_bp'].strip()
+        raw_name = row["domain_exon_bp"].strip()
         if not raw_name:
             continue
 
@@ -253,13 +250,15 @@ def parse_exon_partners_csv(
         normalized = raw_name.replace("_Rev_", "_")
         partner_name = normalized if normalized in sequences else raw_name
 
-        seq_length = len(sequences.get(partner_name, "")) if partner_name in sequences else 0
+        seq_length = (
+            len(sequences.get(partner_name, "")) if partner_name in sequences else 0
+        )
         description = f"{row.get('domain', '').strip()} exon {row.get('exon', '').strip()}".strip()
 
         partners[partner_name] = {
-            'sequence_length': seq_length,
-            'include': True,
-            'description': description
+            "sequence_length": seq_length,
+            "include": True,
+            "description": description,
         }
 
     return partners
@@ -288,27 +287,30 @@ def parse_unfused_sequences_csv(filepath: str | Path) -> dict[str, dict]:
 
     sequences = {}
 
-    with open(filepath, 'r') as f:
+    with open(filepath, "r") as f:
         # Skip comment lines
-        lines = [l for l in f if not l.strip().startswith('#')]
+        lines = [l for l in f if not l.strip().startswith("#")]
 
     reader = csv.DictReader(lines)
 
-    required_cols = {'sequence_name', 'sequence_length', 'include'}
+    required_cols = {"sequence_name", "sequence_length", "include"}
     if not required_cols.issubset(set(reader.fieldnames or [])):
         missing = required_cols - set(reader.fieldnames or [])
-        raise ValueError(f"Missing required columns in unfused sequences file: {missing}")
+        raise ValueError(
+            f"Missing required columns in unfused sequences file: {missing}"
+        )
 
     for row in reader:
-        name = row['sequence_name'].strip()
+        name = row["sequence_name"].strip()
         if not name:
             continue
 
         sequences[name] = {
-            'sequence_length': int(row['sequence_length']),
-            'include': row['include'].lower() in ('true', 'yes', '1'),
-            'exclude_overlap': row.get('exclude_overlap', '').lower() in ('true', 'yes', '1'),
-            'description': row.get('description', '').strip()
+            "sequence_length": int(row["sequence_length"]),
+            "include": row["include"].lower() in ("true", "yes", "1"),
+            "exclude_overlap": row.get("exclude_overlap", "").lower()
+            in ("true", "yes", "1"),
+            "description": row.get("description", "").strip(),
         }
 
     return sequences
@@ -330,28 +332,28 @@ def parse_samples_csv(filepath: str | Path) -> dict[str, dict]:
 
     samples = {}
 
-    with open(filepath, 'r') as f:
+    with open(filepath, "r") as f:
         # Skip comment lines
-        lines = [l for l in f if not l.strip().startswith('#')]
+        lines = [l for l in f if not l.strip().startswith("#")]
 
     reader = csv.DictReader(lines)
 
-    required_cols = {'sample', 'condition', 'file'}
+    required_cols = {"sample", "condition", "file"}
     if not required_cols.issubset(set(reader.fieldnames or [])):
         missing = required_cols - set(reader.fieldnames or [])
         raise ValueError(f"Missing required columns in samples file: {missing}")
 
     for row in reader:
-        name = row['sample'].strip()
+        name = row["sample"].strip()
         if not name:
             continue
 
         samples[name] = {
-            'condition': row['condition'].strip(),
-            'file': row['file'].strip(),
-            'replicate': int(row.get('replicate', 1) or 1),
-            'time': row.get('time', '0').strip(),
-            'tile': row.get('tile', '1').strip()
+            "condition": row["condition"].strip(),
+            "file": row["file"].strip(),
+            "replicate": int(row.get("replicate", 1) or 1),
+            "time": row.get("time", "0").strip(),
+            "tile": row.get("tile", "1").strip(),
         }
 
     return samples
@@ -361,11 +363,12 @@ def parse_samples_csv(filepath: str | Path) -> dict[str, dict]:
 # OUTPUT WRITERS
 # =============================================================================
 
+
 def write_csv(
     filepath: str | Path,
     data: list[dict],
     fieldnames: list[str],
-    header_comment: str | None = None
+    header_comment: str | None = None,
 ) -> None:
     """
     Write data to a CSV file.
@@ -379,9 +382,9 @@ def write_csv(
     filepath = Path(filepath)
     filepath.parent.mkdir(parents=True, exist_ok=True)
 
-    with open(filepath, 'w', newline='') as f:
+    with open(filepath, "w", newline="") as f:
         if header_comment:
-            for line in header_comment.strip().split('\n'):
+            for line in header_comment.strip().split("\n"):
                 f.write(f"# {line}\n")
 
         writer = csv.DictWriter(f, fieldnames=fieldnames)
@@ -390,9 +393,7 @@ def write_csv(
 
 
 def write_fasta(
-    filepath: str | Path,
-    sequences: dict[str, str],
-    line_width: int = 80
+    filepath: str | Path, sequences: dict[str, str], line_width: int = 80
 ) -> None:
     """
     Write sequences to a FASTA file.
@@ -405,21 +406,21 @@ def write_fasta(
     filepath = Path(filepath)
     filepath.parent.mkdir(parents=True, exist_ok=True)
 
-    with open(filepath, 'w') as f:
+    with open(filepath, "w") as f:
         for name, seq in sequences.items():
             f.write(f">{name}\n")
             # Wrap sequence
             for i in range(0, len(seq), line_width):
-                f.write(f"{seq[i:i+line_width]}\n")
+                f.write(f"{seq[i : i + line_width]}\n")
 
 
 # =============================================================================
 # VALIDATION
 # =============================================================================
 
+
 def validate_nucleotide_sequence(
-    sequence: str,
-    allow_ambiguous: bool = False
+    sequence: str, allow_ambiguous: bool = False
 ) -> tuple[bool, str | None]:
     """
     Validate that a sequence contains only valid nucleotides.
@@ -443,9 +444,7 @@ def validate_nucleotide_sequence(
 
 
 def validate_sequences_match_config(
-    sequences: dict[str, str],
-    partners: dict[str, dict],
-    anchor_name: str
+    sequences: dict[str, str], partners: dict[str, dict], anchor_name: str
 ) -> list[str]:
     """
     Validate that sequence file matches configuration.
@@ -466,7 +465,7 @@ def validate_sequences_match_config(
 
     # Check each included partner
     for partner_name, config in partners.items():
-        if not config['include']:
+        if not config["include"]:
             continue
 
         if partner_name not in sequences:
@@ -474,7 +473,7 @@ def validate_sequences_match_config(
             continue
 
         actual_length = len(sequences[partner_name])
-        expected_length = config['sequence_length']
+        expected_length = config["sequence_length"]
 
         if actual_length != expected_length:
             messages.append(
@@ -488,6 +487,7 @@ def validate_sequences_match_config(
 # =============================================================================
 # PROGRESS REPORTING
 # =============================================================================
+
 
 class ProgressReporter:
     """
@@ -508,7 +508,7 @@ class ProgressReporter:
         interval_pct: float = 1.0,
         enabled: bool = True,
         logger: logging.Logger | None = None,
-        report_every_seconds: int = 60
+        report_every_seconds: int = 60,
     ):
         """
         Initialize progress reporter.
@@ -613,7 +613,7 @@ def progress_iterator(
     total: int | None = None,
     desc: str = "Processing",
     interval_pct: float = 1.0,
-    enabled: bool = True
+    enabled: bool = True,
 ) -> Iterator:
     """
     Wrap an iterable with progress reporting.
@@ -636,10 +636,7 @@ def progress_iterator(
             enabled = False
 
     progress = ProgressReporter(
-        total=total,
-        desc=desc,
-        interval_pct=interval_pct,
-        enabled=enabled
+        total=total, desc=desc, interval_pct=interval_pct, enabled=enabled
     )
 
     for item in iterable:
@@ -647,3 +644,255 @@ def progress_iterator(
         progress.update()
 
     progress.finish()
+
+
+# =============================================================================
+# LOG PARSING FUNCTIONS
+# =============================================================================
+
+import re
+from pathlib import Path
+
+
+def parse_bbmerge_log(path: str | Path) -> dict | None:
+    """
+    Parse BBMerge log file to extract merge statistics.
+
+    Args:
+        path: Path to BBMerge log file
+
+    Returns:
+        Dict with keys: total_pairs, merged_pairs, unmerged_pairs, unmerged_fraction
+        Returns None if file not found or parse fails
+    """
+    path = Path(path)
+    if not path.exists():
+        return None
+
+    total_pairs = None
+    joined = None
+
+    with open(path, "r") as fh:
+        for line in fh:
+            line = line.strip()
+            if line.startswith("Pairs:"):
+                match = re.search(r"Pairs:\s*([0-9,]+)", line)
+                if match:
+                    total_pairs = int(match.group(1).replace(",", ""))
+            elif line.startswith("Joined:"):
+                match = re.search(r"Joined:\s*([0-9,]+)", line)
+                if match:
+                    joined = int(match.group(1).replace(",", ""))
+
+    if total_pairs is None or joined is None:
+        return None
+
+    unmerged = max(total_pairs - joined, 0)
+    unmerged_fraction = unmerged / total_pairs if total_pairs else 0.0
+
+    return {
+        "total_pairs": total_pairs,
+        "merged_pairs": joined,
+        "unmerged_pairs": unmerged,
+        "unmerged_fraction": float(unmerged_fraction),
+    }
+
+
+def parse_bbduk_log(path: str | Path) -> dict | None:
+    """
+    Parse BBDuk log file to extract read counts.
+
+    Args:
+        path: Path to BBDuk log file
+
+    Returns:
+        Dict with keys: input_reads, input_bases, output_reads, output_bases
+        Returns None if file not found or parse fails
+    """
+    path = Path(path)
+    if not path.exists():
+        return None
+
+    input_reads = None
+    input_bases = None
+    result_reads = None
+    result_bases = None
+
+    with open(path, "r") as fh:
+        for line in fh:
+            line = line.strip()
+            if line.startswith("Input:"):
+                match = re.search(
+                    r"Input:\s*([0-9,]+)\s+reads\s*(?:\(([0-9,]+)\s+bases\))?",
+                    line,
+                )
+                if match:
+                    input_reads = int(match.group(1).replace(",", ""))
+                    input_bases = (
+                        int(match.group(2).replace(",", "")) if match.group(2) else None
+                    )
+            elif line.startswith("Result:"):
+                match = re.search(
+                    r"Result:\s*([0-9,]+)\s+reads\s*(?:\(([0-9,]+)\s+bases\))?",
+                    line,
+                )
+                if match:
+                    result_reads = int(match.group(1).replace(",", ""))
+                    result_bases = (
+                        int(match.group(2).replace(",", "")) if match.group(2) else None
+                    )
+
+    if input_reads is None or result_reads is None:
+        return None
+
+    return {
+        "input_reads": input_reads,
+        "input_bases": input_bases,
+        "output_reads": result_reads,
+        "output_bases": result_bases,
+    }
+
+
+def parse_bbmerge_stats(path: str | Path) -> dict | None:
+    """
+    Parse BBMerge statistics file (merged stats).
+
+    Args:
+        path: Path to BBMerge stats file
+
+    Returns:
+        Dict with keys: merged_reads, merged_bases, avg_insert
+        Returns None if file not found or parse fails
+    """
+    path = Path(path)
+    if not path.exists():
+        return None
+
+    joined = None
+    avg_insert = None
+
+    with open(path, "r") as fh:
+        for line in fh:
+            line = line.strip()
+            if line.startswith("Joined:"):
+                match = re.search(r"Joined:\s*([0-9,]+)", line)
+                if match:
+                    joined = int(match.group(1).replace(",", ""))
+            elif line.startswith("Avg Insert"):
+                match = re.search(r"Avg Insert:\s*([0-9.]+)", line)
+                if match:
+                    avg_insert = float(match.group(1))
+
+    if joined is None:
+        return None
+
+    merged_bases = int(round(joined * avg_insert)) if avg_insert else None
+
+    return {
+        "merged_reads": joined,
+        "merged_bases": merged_bases,
+        "avg_insert": avg_insert,
+    }
+
+
+def parse_bbduk_stats(path: str | Path) -> dict | None:
+    """
+    Parse BBDuk stats file.
+
+    Args:
+        path: Path to BBDuk stats file
+
+    Returns:
+        Dict with keys: input_reads, input_bases, output_reads, output_bases
+        Returns None if file not found or parse fails
+    """
+    path = Path(path)
+    if not path.exists():
+        return None
+
+    input_reads = None
+    input_bases = None
+    output_reads = None
+    output_bases = None
+
+    with open(path, "r") as fh:
+        for line in fh:
+            line = line.strip()
+            if line.startswith("Input:"):
+                match = re.search(
+                    r"Input:\s*([0-9,]+)\s+reads\s*(?:\(([0-9,]+)\s+bases\))?",
+                    line,
+                )
+                if match:
+                    input_reads = int(match.group(1).replace(",", ""))
+                    input_bases = (
+                        int(match.group(2).replace(",", "")) if match.group(2) else None
+                    )
+            elif line.startswith("Output:"):
+                match = re.search(
+                    r"Output:\s*([0-9,]+)\s+reads\s*(?:\(([0-9,]+)\s+bases\))?",
+                    line,
+                )
+                if match:
+                    output_reads = int(match.group(1).replace(",", ""))
+                    output_bases = (
+                        int(match.group(2).replace(",", "")) if match.group(2) else None
+                    )
+
+    if input_reads is None or output_reads is None:
+        return None
+
+    return {
+        "input_reads": input_reads,
+        "input_bases": input_bases,
+        "output_reads": output_reads,
+        "output_bases": output_bases,
+    }
+
+
+def parse_ihist(path: str | Path) -> dict | None:
+    """
+    Parse BBMerge ihist file to extract overlap statistics.
+
+    Args:
+        path: Path to ihist file
+
+    Returns:
+        Dict with key: median (overlap median)
+        Returns None if file not found or parse fails
+    """
+    path = Path(path)
+    if not path.exists():
+        return None
+
+    rows = []
+    with open(path, "r") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            parts = line.split()
+            if len(parts) < 2:
+                continue
+            try:
+                size = float(parts[0])
+                count = float(parts[1])
+            except ValueError:
+                continue
+            rows.append((size, count))
+
+    if not rows:
+        return None
+
+    total = sum(c for _, c in rows)
+    rows.sort(key=lambda x: x[0])
+    cum = 0.0
+    median = 0.0
+
+    for size, count in rows:
+        cum += count
+        if cum >= total / 2.0:
+            median = size
+            break
+
+    return {"median": median}
