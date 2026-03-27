@@ -457,6 +457,25 @@ def calculate_sensitivity_metrics(
 
     kmer_length = 2 * breakpoint_window
 
+    def _calculate_expected_fraction(
+        avg_insert: float, lengths: pd.Series, k: int
+    ) -> float:
+        """Calculate expected detection fraction per fusion, then average (per-fusion calibration)."""
+        if avg_insert <= 0 or lengths.empty:
+            return 0.0
+
+        probs = pd.Series(0.0, index=lengths.index)
+
+        full_mask = lengths <= avg_insert
+        probs[full_mask] = 1.0
+
+        partial_mask = ~full_mask & (avg_insert >= k)
+        probs[partial_mask] = (avg_insert - k + 1) / (
+            lengths[partial_mask] - avg_insert + 1
+        )
+
+        return float(probs.mean())
+
     sensitivity_rows = []
     for sample in sample_cols:
         merge = merge_stats.get(sample)
@@ -467,13 +486,9 @@ def calculate_sensitivity_metrics(
         raw_reads = trim_log["input_reads"] if trim_log else 0
         raw_pairs = raw_reads // 2 if raw_reads else 0
 
-        if avg_insert >= kmer_length and mean_fusion_length > avg_insert:
-            expected_fraction = min(
-                1.0,
-                (avg_insert - kmer_length + 1) / (mean_fusion_length - avg_insert + 1),
-            )
-        else:
-            expected_fraction = 0.0
+        expected_fraction = _calculate_expected_fraction(
+            avg_insert, fusion_lengths, kmer_length
+        )
 
         matched_reads = 0
         if not json_df.empty:
