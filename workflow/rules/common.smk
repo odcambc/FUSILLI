@@ -52,7 +52,6 @@ BREAKPOINT_WINDOW = DETECTION_CONFIG.get("breakpoint_window", 12)
 MAINTAIN_FRAME = DETECTION_CONFIG.get("maintain_frame", True)
 KMER_SIZE = DETECTION_CONFIG.get("kmer_size", 15)
 ORIENTATION_CHECK = DETECTION_CONFIG.get("orientation_check", False)
-LINKER_FIRST = DETECTION_CONFIG.get("linker_first", False)
 PREFILTER_FALLBACK = DETECTION_CONFIG.get("prefilter_fallback", False)
 UNMERGED_DETECTION = DETECTION_CONFIG.get("unmerged_detection", False)
 

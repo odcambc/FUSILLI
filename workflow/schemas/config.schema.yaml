@@ -152,11 +152,6 @@ properties:
         description: "Fallback to full breakpoint scan when pre-filter misses (slow)"
         default: false
 
-      linker_first:
-        type: boolean
-        description: "Use linker-first detection fast path before full breakpoint search"
-        default: false
-
       unmerged_detection:
         type: boolean
         description: "Also scan unmerged mates for breakpoint matches"

@@ -69,7 +69,6 @@ rule detect_fusions_string:
         progress_interval=PROGRESS_INTERVAL,
         orientation_check=ORIENTATION_CHECK,
         prefilter_fallback=PREFILTER_FALLBACK,
-        linker_first=LINKER_FIRST,
         linker_sequence=LINKER_SEQUENCE,
         breakpoint_window=BREAKPOINT_WINDOW
     log:
@@ -107,7 +106,6 @@ rule detect_fusions_unmerged_string:
         progress_interval=PROGRESS_INTERVAL,
         orientation_check=ORIENTATION_CHECK,
         prefilter_fallback=PREFILTER_FALLBACK,
-        linker_first=LINKER_FIRST,
         linker_sequence=LINKER_SEQUENCE,
         breakpoint_window=BREAKPOINT_WINDOW
     log:

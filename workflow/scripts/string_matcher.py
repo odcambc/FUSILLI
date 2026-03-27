@@ -493,6 +493,7 @@ def _find_matches_in_read_aho(
 
     # Pre-filter: find matched domains using Aho-Corasick
     matched_domains = find_matches_aho(sequence, domain_ends_automaton)
+    forward_domains_matched = bool(matched_domains)
 
     if orientation_check and rc_domain_ends_automaton:
         if rc_sequence is None:
@@ -505,7 +506,7 @@ def _find_matches_in_read_aho(
             rc_hit = True
 
     if matched_domains:
-        forward_hit = not rc_hit
+        forward_hit = forward_domains_matched
 
         # Search breakpoints for matched domains
         if partner_breakpoints_automata:
@@ -589,6 +590,7 @@ def _find_matches_in_read_original(
     for domain_name, end_kmer in domain_ends.items():
         if end_kmer in sequence:
             matched_domains.append(domain_name)
+    forward_domains_matched = bool(matched_domains)
 
     if orientation_check and rc_domain_ends:
         if rc_sequence is None:
@@ -601,7 +603,7 @@ def _find_matches_in_read_original(
                 rc_hit = True
 
     if matched_domains:
-        forward_hit = not rc_hit
+        forward_hit = forward_domains_matched
     else:
         if prefilter_fallback:
             for domain, bp_map in breakpoints.items():

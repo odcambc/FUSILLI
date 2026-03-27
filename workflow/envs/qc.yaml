@@ -6,8 +6,9 @@ channels:
 dependencies:
   - python=3.11
   - fastqc
-  - multiqc
   - snakemake-wrapper-utils>=0.6
   - pip
   - pip:
+    - polars
+    - multiqc
     - git+https://github.com/odcambc/fusilli-multiqc.git
