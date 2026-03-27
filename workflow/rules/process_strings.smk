@@ -490,171 +490,6 @@ rule aggregate_counts:
                 columns=["partner_name"]
             ).to_csv(output.partner_summary, index=False)
 
-        def _parse_fastqc_lengths(zip_path):
-            if not Path(zip_path).exists():
-                return None
-            with zipfile.ZipFile(zip_path) as zf:
-                data_files = [n for n in zf.namelist() if n.endswith("fastqc_data.txt")]
-                if not data_files:
-                    return None
-                with zf.open(data_files[0]) as fh:
-                    lines = [l.decode("utf-8").strip() for l in fh.readlines()]
-            in_section = False
-            lengths = []
-            for line in lines:
-                if line.startswith(">>Sequence Length Distribution"):
-                    in_section = True
-                    continue
-                if in_section:
-                    if line.startswith(">>END_MODULE"):
-                        break
-                    if not line or line.startswith("#"):
-                        continue
-                    parts = line.split("\t")
-                    if len(parts) < 2:
-                        continue
-                    length_token, count_token = parts[0], parts[1]
-                    try:
-                        count = float(count_token)
-                    except ValueError:
-                        continue
-                    if "-" in length_token:
-                        start, end = length_token.split("-", 1)
-                        try:
-                            start_v = float(start)
-                            end_v = float(end)
-                        except ValueError:
-                            continue
-                        length = (start_v + end_v) / 2.0
-                        lengths.append((length, count, start_v, end_v))
-                    else:
-                        try:
-                            length = float(length_token)
-                        except ValueError:
-                            continue
-                        lengths.append((length, count, length, length))
-            if not lengths:
-                return None
-            total = sum(c for _, c, _, _ in lengths)
-            mean = sum(length * c for length, c, _, _ in lengths) / total if total else 0.0
-            return {"lengths": lengths, "total": total, "mean": mean}
-
-        def _fraction_reads_long_enough(lengths, threshold):
-            if not lengths:
-                return 0.0
-            total = sum(c for _, c, _, _ in lengths)
-            if total == 0:
-                return 0.0
-            long_count = 0.0
-            for _, count, start_v, end_v in lengths:
-                if end_v < threshold:
-                    continue
-                if start_v >= threshold:
-                    long_count += count
-                else:
-                    # partial overlap within range
-                    if end_v > start_v:
-                        frac = (end_v - threshold) / (end_v - start_v)
-                        long_count += count * max(0.0, min(1.0, frac))
-            return long_count / total
-
-        def _parse_ihist(path):
-            if not Path(path).exists():
-                return None
-            rows = []
-            with open(path, "r") as fh:
-                for line in fh:
-                    line = line.strip()
-                    if not line or line.startswith("#"):
-                        continue
-                    parts = line.split()
-                    if len(parts) < 2:
-                        continue
-                    try:
-                        size = float(parts[0])
-                        count = float(parts[1])
-                    except ValueError:
-                        continue
-                    rows.append((size, count))
-            if not rows:
-                return None
-            total = sum(c for _, c in rows)
-            rows.sort(key=lambda x: x[0])
-            cum = 0.0
-            median = 0.0
-            for size, count in rows:
-                cum += count
-                if cum >= total / 2.0:
-                    median = size
-                    break
-            return {"median": median}
-
-        sensitivity_rows = []
-        for sample in sample_cols:
-            threshold = 2 * BREAKPOINT_WINDOW
-
-            # Parse FastQC data only if QC was actually run
-            if RUN_QC:
-                fastqc_zip = Path(f"stats/{EXPERIMENT}/fastqc/{sample}_R1.fastqc.zip")
-                lengths_info = _parse_fastqc_lengths(fastqc_zip)
-                lengths = lengths_info["lengths"] if lengths_info else None
-                mean_len = lengths_info["mean"] if lengths_info else 0.0
-                expected_fraction = _fraction_reads_long_enough(lengths, threshold)
-            else:
-                mean_len = 0.0
-                expected_fraction = 0.0
-
-            matched_reads = int(json_df.loc[json_df["sample"] == sample, "matched_reads"].fillna(0).iloc[0]) if not json_df.empty else 0
-            reads_processed = int(json_df.loc[json_df["sample"] == sample, "reads_processed"].fillna(0).iloc[0]) if not json_df.empty else 0
-            expected_reads = reads_processed * expected_fraction
-            sensitivity_index = (matched_reads / expected_reads) if expected_reads else 0.0
-
-            # Parse merge overlap stats if available
-            ihist_path = Path(f"stats/{EXPERIMENT}/merge/{sample}.ihist")
-            ihist_info = _parse_ihist(ihist_path) if ihist_path.exists() else None
-            overlap_median = ihist_info["median"] if ihist_info else 0.0
-
-            sensitivity_rows.append({
-                "sample": sample,
-                "read_length_mean": float(mean_len),
-                "overlap_median": float(overlap_median),
-                "breakpoint_kmer_length": int(threshold),
-                "expected_detection_fraction": float(expected_fraction),
-                "sensitivity_index": float(sensitivity_index),
-                "qc_was_run": RUN_QC,
-            })
-
-        pd.DataFrame(sensitivity_rows).to_csv(output.sensitivity_metrics, index=False)
-
-        def _parse_bbduk_stats(path):
-            if not Path(path).exists():
-                return None
-            input_reads = None
-            input_bases = None
-            output_reads = None
-            output_bases = None
-            with open(path, "r") as fh:
-                for line in fh:
-                    line = line.strip()
-                    if line.startswith("Input:"):
-                        match = re.search(r"Input:\s*([0-9,]+)\s+reads(?:\s*\([^)]*\))?\s+([0-9,]+)\s+bases", line)
-                        if match:
-                            input_reads = int(match.group(1).replace(",", ""))
-                            input_bases = int(match.group(2).replace(",", ""))
-                    elif line.startswith("Output:"):
-                        match = re.search(r"Output:\s*([0-9,]+)\s+reads(?:\s*\([^)]*\))?\s+([0-9,]+)\s+bases", line)
-                        if match:
-                            output_reads = int(match.group(1).replace(",", ""))
-                            output_bases = int(match.group(2).replace(",", ""))
-            if input_reads is None or output_reads is None:
-                return None
-            return {
-                "input_reads": input_reads,
-                "input_bases": input_bases,
-                "output_reads": output_reads,
-                "output_bases": output_bases,
-            }
-
         def _parse_bbduk_log(path):
             if not Path(path).exists():
                 return None
@@ -706,6 +541,131 @@ rule aggregate_counts:
             return {
                 "merged_reads": joined,
                 "merged_bases": merged_bases,
+                "avg_insert": avg_insert,
+            }
+
+        def _parse_ihist(path):
+            if not Path(path).exists():
+                return None
+            rows = []
+            with open(path, "r") as fh:
+                for line in fh:
+                    line = line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    parts = line.split()
+                    if len(parts) < 2:
+                        continue
+                    try:
+                        size = float(parts[0])
+                        count = float(parts[1])
+                    except ValueError:
+                        continue
+                    rows.append((size, count))
+            if not rows:
+                return None
+            total = sum(c for _, c in rows)
+            rows.sort(key=lambda x: x[0])
+            cum = 0.0
+            median = 0.0
+            for size, count in rows:
+                cum += count
+                if cum >= total / 2.0:
+                    median = size
+                    break
+            return {"median": median}
+
+        # Mean fusion sequence length across all fusion variants — used as the
+        # source sequence length for positional sampling probability.
+        variant_catalog_df = pd.read_csv(input.variant_catalog)
+        fusion_lengths = variant_catalog_df.loc[
+            variant_catalog_df["type"] == "fusion", "full_fusion_length"
+        ].dropna()
+        mean_fusion_length = float(fusion_lengths.mean()) if not fusion_lengths.empty else 0.0
+
+        # Parse BBMerge logs upfront (needed for both sensitivity and decay).
+        sensitivity_merge_stats = {}
+        for path in input.merge_logs:
+            sample = Path(path).stem
+            sensitivity_merge_stats[sample] = _parse_bbmerge_stats(path)
+
+        # Parse trim logs upfront for raw pair counts.
+        sensitivity_trim_logs = {}
+        for path in input.trim_logs:
+            sample = Path(path).stem.replace(".trim", "")
+            sensitivity_trim_logs[sample] = _parse_bbduk_log(path)
+
+        kmer_length = 2 * BREAKPOINT_WINDOW
+
+        sensitivity_rows = []
+        for sample in sample_cols:
+            merge = sensitivity_merge_stats.get(sample)
+            trim_log = sensitivity_trim_logs.get(sample)
+
+            avg_insert = merge["avg_insert"] if merge and merge.get("avg_insert") else 0.0
+            merged_reads = merge["merged_reads"] if merge else 0
+            raw_reads = trim_log["input_reads"] if trim_log else 0
+            raw_pairs = raw_reads // 2 if raw_reads else 0
+
+            # P(fragment covers breakpoint k-mer) = (r - k + 1) / (L - r + 1)
+            # where r = avg insert size, k = k-mer length, L = mean fusion sequence length.
+            if avg_insert >= kmer_length and mean_fusion_length > avg_insert:
+                expected_fraction = min(1.0, (avg_insert - kmer_length + 1) / (mean_fusion_length - avg_insert + 1))
+            else:
+                expected_fraction = 0.0
+
+            matched_reads = int(json_df.loc[json_df["sample"] == sample, "matched_reads"].fillna(0).iloc[0]) if not json_df.empty else 0
+
+            expected_from_merged = merged_reads * expected_fraction
+            expected_from_raw = raw_pairs * expected_fraction
+
+            matching_efficiency = (matched_reads / expected_from_merged) if expected_from_merged else 0.0
+            end_to_end_efficiency = (matched_reads / expected_from_raw) if expected_from_raw else 0.0
+
+            ihist_path = Path(f"stats/{EXPERIMENT}/merge/{sample}.ihist")
+            ihist_info = _parse_ihist(ihist_path) if ihist_path.exists() else None
+            overlap_median = ihist_info["median"] if ihist_info else 0.0
+
+            sensitivity_rows.append({
+                "sample": sample,
+                "avg_insert_size": float(avg_insert),
+                "overlap_median": float(overlap_median),
+                "breakpoint_kmer_length": int(kmer_length),
+                "mean_fusion_length": float(mean_fusion_length),
+                "expected_detection_fraction": float(expected_fraction),
+                "matching_efficiency": float(matching_efficiency),
+                "end_to_end_efficiency": float(end_to_end_efficiency),
+            })
+
+        pd.DataFrame(sensitivity_rows).to_csv(output.sensitivity_metrics, index=False)
+
+        def _parse_bbduk_stats(path):
+            if not Path(path).exists():
+                return None
+            input_reads = None
+            input_bases = None
+            output_reads = None
+            output_bases = None
+            with open(path, "r") as fh:
+                for line in fh:
+                    line = line.strip()
+                    if line.startswith("Input:"):
+                        match = re.search(r"Input:\s*([0-9,]+)\s+reads(?:\s*\([^)]*\))?\s+([0-9,]+)\s+bases", line)
+                        if match:
+                            input_reads = int(match.group(1).replace(",", ""))
+                            input_bases = int(match.group(2).replace(",", ""))
+                    elif line.startswith("Output:"):
+                        match = re.search(r"Output:\s*([0-9,]+)\s+reads(?:\s*\([^)]*\))?\s+([0-9,]+)\s+bases", line)
+                        if match:
+                            output_reads = int(match.group(1).replace(",", ""))
+                            output_bases = int(match.group(2).replace(",", ""))
+            if input_reads is None or output_reads is None:
+                return None
+            return {
+                "input_reads": input_reads,
+                "input_bases": input_bases,
+                "output_reads": output_reads,
+                "output_bases": output_bases,
             }
 
         trim_stats = {}
@@ -723,10 +683,7 @@ rule aggregate_counts:
             sample = Path(path).stem.replace(".quality", "")
             quality_stats[sample] = _parse_bbduk_stats(path)
 
-        trim_logs = {}
-        for path in input.trim_logs:
-            sample = Path(path).stem.replace(".trim", "")
-            trim_logs[sample] = _parse_bbduk_log(path)
+        trim_logs = sensitivity_trim_logs
 
         contam_logs = {}
         for path in input.contam_logs:
@@ -738,10 +695,7 @@ rule aggregate_counts:
             sample = Path(path).stem.replace(".quality", "")
             quality_logs[sample] = _parse_bbduk_log(path)
 
-        merge_stats_simple = {}
-        for path in input.merge_logs:
-            sample = Path(path).stem
-            merge_stats_simple[sample] = _parse_bbmerge_stats(path)
+        merge_stats_simple = sensitivity_merge_stats
 
         decay_rows = []
         for sample in sample_cols:
@@ -757,24 +711,38 @@ rule aggregate_counts:
             raw_reads = trim_log["input_reads"] if trim_log else (trim["input_reads"] if trim else 0)
             raw_bases = trim_log["input_bases"] if trim_log else (trim["input_bases"] if trim else None)
 
+            # BBDuk counts R1+R2 combined; convert to pairs by dividing by 2.
+            # BBMerge reports joined pairs directly — already in pairs.
+            # Bases are tracked independently per read (not normalized to pairs).
+            raw_pairs = raw_reads // 2 if raw_reads else 0
+
+            matched_reads = int(
+                json_df.loc[json_df["sample"] == sample, "matched_reads"].fillna(0).iloc[0]
+            ) if not json_df.empty and sample in json_df["sample"].values else 0
+
             steps = [
-                ("raw", raw_reads, raw_bases),
-                ("trimmed", trim_log["output_reads"] if trim_log else (trim["output_reads"] if trim else 0),
-                 trim_log["output_bases"] if trim_log else (trim["output_bases"] if trim else None)),
-                ("cleaned", contam_log["output_reads"] if contam_log else (contam["output_reads"] if contam else 0),
-                 contam_log["output_bases"] if contam_log else (contam["output_bases"] if contam else None)),
-                ("quality", quality_log["output_reads"] if quality_log else (quality["output_reads"] if quality else 0),
-                 quality_log["output_bases"] if quality_log else (quality["output_bases"] if quality else None)),
+                ("raw", raw_pairs, raw_bases),
+                ("trimmed",
+                 (trim_log["output_reads"] if trim_log else (trim["output_reads"] if trim else 0)) // 2,
+                 (trim_log["output_bases"] if trim_log else (trim["output_bases"] if trim else None)),),
+                ("cleaned",
+                 (contam_log["output_reads"] if contam_log else (contam["output_reads"] if contam else 0)) // 2,
+                 (contam_log["output_bases"] if contam_log else (contam["output_bases"] if contam else None)),),
+                ("quality",
+                 (quality_log["output_reads"] if quality_log else (quality["output_reads"] if quality else 0)) // 2,
+                 (quality_log["output_bases"] if quality_log else (quality["output_bases"] if quality else None)),),
                 ("merged", merged["merged_reads"] if merged else 0, merged["merged_bases"] if merged else None),
+                ("matched", matched_reads, None),
             ]
 
-            for step, reads, bases in steps:
+            for step, pairs, bases in steps:
+                read_fraction = float(pairs / raw_pairs) if raw_pairs else 0.0
                 decay_rows.append({
                     "sample": sample,
                     "step": step,
-                    "reads": int(reads) if reads is not None else 0,
+                    "reads": int(pairs) if pairs is not None else 0,
                     "bases": int(bases) if bases is not None else None,
-                    "read_fraction": float(reads / raw_reads) if raw_reads else 0.0,
+                    "read_fraction": read_fraction,
                     "base_fraction": float(bases / raw_bases) if raw_bases and bases is not None else 0.0,
                 })
 
