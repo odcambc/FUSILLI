@@ -95,7 +95,7 @@ def load_and_merge_counts(
         else:
             df["type"] = "fusion"
             df = df[["fusion_id", "type", "count"]]
-        df = df.rename(columns={"count": sample})
+        df = df.rename(columns={"count": sample})  # type: ignore[call-overload]
         dfs.append(df.set_index("fusion_id"))
 
     type_col = None
@@ -378,7 +378,7 @@ def load_partner_counts(partner_files: list[str]) -> Any:
         partner_merged = pd.concat(partner_dfs, axis=1).fillna(0).astype(int)
         return partner_merged.reset_index()
     else:
-        return pd.DataFrame(columns=["partner_name"])
+        return pd.DataFrame(columns=pd.Index(["partner_name"]))
 
 
 def load_json_metrics(metrics_files: list[str], suffix: str = "fusion_metrics") -> Any:
@@ -706,11 +706,11 @@ def aggregate_merged(
             variant_catalog_df["type"] == "fusion"
         ].copy()
         if "breakpoint_nt" in fusion_catalog.columns:
-            expected_breakpoints = fusion_catalog["breakpoint_nt"].nunique()
+            expected_breakpoints = int(fusion_catalog["breakpoint_nt"].nunique())  # type: ignore[union-attr]
         else:
             expected_breakpoints = len(fusion_catalog)
         if "partner_name" in fusion_catalog.columns:
-            expected_partners = fusion_catalog["partner_name"].nunique()
+            expected_partners = int(fusion_catalog["partner_name"].nunique())  # type: ignore[union-attr]
         else:
             expected_partners = 0
     except (FileNotFoundError, KeyError, pd.errors.EmptyDataError):
