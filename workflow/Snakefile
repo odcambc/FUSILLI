@@ -88,7 +88,7 @@ rule all:
 
 rule counts_only:
     """
-    Alternative target: generate fusion counts without QC.
+    Alternative target: generate fusion counts and summary without QC.
     """
     input:
         expand(
@@ -96,6 +96,13 @@ rule counts_only:
             experiment=EXPERIMENT,
             sample=SAMPLES
         )
+        + [
+            f"results/{EXPERIMENT}/fusion_counts_summary.csv",
+            f"results/{EXPERIMENT}/partner_counts_summary.csv",
+            f"results/{EXPERIMENT}/fusion_qc_metrics.csv",
+            f"results/{EXPERIMENT}/sensitivity_metrics.csv",
+            f"results/{EXPERIMENT}/decay_metrics.csv",
+        ]
         + (
             expand(
                 "results/{experiment}/counts/{sample}.{mate}.unmerged_fusion_counts.csv",
@@ -103,6 +110,11 @@ rule counts_only:
                 sample=SAMPLES,
                 mate=["R1", "R2"]
             )
+            + [
+                f"results/{EXPERIMENT}/unmerged_counts_summary.csv",
+                f"results/{EXPERIMENT}/unmerged_qc_metrics.csv",
+                f"results/{EXPERIMENT}/unmerged_partner_counts_summary.csv",
+            ]
             if UNMERGED_DETECTION else []
         )
 
