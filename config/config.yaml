@@ -169,6 +169,40 @@ resources:
   # Default thread count
   threads: 16
 
+  # Per-rule resource overrides (for cluster execution)
+  # Uncomment and modify as needed for your HPC environment
+  # rule_resources:
+  #   trim_adapters:
+  #     partition: "long"
+  #     runtime: "2h"
+  #   detect_fusions_string:
+  #     partition: "long"
+  #     runtime: "8h"
+  #   merge_reads:
+  #     partition: "long"
+  #     runtime: "4h"
+
+# -----------------------------------------------------------------------------
+# CLUSTER/HPC CONFIGURATION
+# -----------------------------------------------------------------------------
+# Uncomment and configure for SLURM cluster execution
+# cluster:
+#   slurm:
+#     partition: "normal"       # Default SLURM partition
+#     account: null              # SLURM account (if required)
+#     qos: null                  # Quality of Service
+#     extra_args: ""             # Additional sbatch arguments
+
+# -----------------------------------------------------------------------------
+# CONTAINER CONFIGURATION
+# -----------------------------------------------------------------------------
+# Uncomment and configure for containerized execution
+# container:
+#   runtime: "conda"            # Options: conda, docker, apptainer, singularity
+#   docker_image: "fusilli:latest"
+#   singularity_image: "fusilli.sif"
+#   singularity_bind: "/data:/data,/scratch:/scratch"
+
 # -----------------------------------------------------------------------------
 # QUICK MODE (SUBSAMPLING)
 # -----------------------------------------------------------------------------

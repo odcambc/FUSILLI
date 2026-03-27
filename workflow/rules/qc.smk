@@ -81,10 +81,14 @@ rule multiqc_dir:
         "benchmarks/{experiment}/multiqc.benchmark.txt"
     log:
         "logs/{experiment}/multiqc.log",
+    threads: 1
+    resources:
+        mem_mb=4096,
+        runtime=lambda wildcards: get_runtime("multiqc_dir"),
+        partition=lambda wildcards: get_partition("multiqc_dir"),
+        slurm_extra=lambda wildcards: get_slurm_extra("multiqc_dir"),
     conda:
         "../envs/qc.yaml",
-    params:
-        config="config/multiqc_config.yaml"
     wrapper:
         "v3.1.0/bio/multiqc"
 
@@ -105,6 +109,9 @@ rule fastqc:
     threads: 8
     resources:
         mem_mb=MEM_FASTQC,
+        runtime=lambda wildcards: get_runtime("fastqc"),
+        partition=lambda wildcards: get_partition("fastqc"),
+        slurm_extra=lambda wildcards: get_slurm_extra("fastqc"),
     conda:
         "../envs/qc.yaml",
     wrapper:

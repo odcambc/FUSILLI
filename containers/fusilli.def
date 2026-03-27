@@ -1,0 +1,17 @@
+Bootstrap: docker
+From: mambaorg/micromamba:1.5
+
+%files
+    fusilli_env.yaml /tmp/fusilli_env.yaml
+
+%post
+    micromamba install -y -n base -f /tmp/fusilli_env.yaml
+    micromamba clean --all --yes
+    mkdir -p /workspace
+
+%environment
+    export MAMBA_ROOT_PREFIX=/opt/conda
+    export PATH=$MAMBA_ROOT_PREFIX/bin:$PATH
+
+%runscript
+    exec "$@"

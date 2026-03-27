@@ -35,7 +35,10 @@ rule trim_adapters:
         "benchmarks/{experiment}/{sample}.bbduk_trim.txt"
     threads: DEFAULT_THREADS
     resources:
-        mem_mb=DEFAULT_MEMORY
+        mem_mb=DEFAULT_MEMORY,
+        runtime=lambda wildcards: get_runtime("trim_adapters"),
+        partition=lambda wildcards: get_partition("trim_adapters"),
+        slurm_extra=lambda wildcards: get_slurm_extra("trim_adapters"),
     shell:
         """
         bbduk.sh \
@@ -79,7 +82,10 @@ rule remove_contaminants:
         "benchmarks/{experiment}/{sample}.bbduk_clean.txt"
     threads: DEFAULT_THREADS
     resources:
-        mem_mb=DEFAULT_MEMORY
+        mem_mb=DEFAULT_MEMORY,
+        runtime=lambda wildcards: get_runtime("remove_contaminants"),
+        partition=lambda wildcards: get_partition("remove_contaminants"),
+        slurm_extra=lambda wildcards: get_slurm_extra("remove_contaminants"),
     shell:
         """
         bbduk.sh \
@@ -115,7 +121,10 @@ rule filter_quality:
         "benchmarks/{experiment}/{sample}.bbduk_quality.txt"
     threads: DEFAULT_THREADS
     resources:
-        mem_mb=DEFAULT_MEMORY
+        mem_mb=DEFAULT_MEMORY,
+        runtime=lambda wildcards: get_runtime("filter_quality"),
+        partition=lambda wildcards: get_partition("filter_quality"),
+        slurm_extra=lambda wildcards: get_slurm_extra("filter_quality"),
     shell:
         """
         bbduk.sh \
@@ -158,7 +167,10 @@ rule merge_reads:
         "benchmarks/{experiment}/{sample}.bbmerge.txt"
     threads: DEFAULT_THREADS
     resources:
-        mem_mb=DEFAULT_MEMORY
+        mem_mb=DEFAULT_MEMORY,
+        runtime=lambda wildcards: get_runtime("merge_reads"),
+        partition=lambda wildcards: get_partition("merge_reads"),
+        slurm_extra=lambda wildcards: get_slurm_extra("merge_reads"),
     shell:
         """
         bbmerge.sh \

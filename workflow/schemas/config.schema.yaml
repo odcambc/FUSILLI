@@ -250,6 +250,83 @@ properties:
         maximum: 128
         default: 16
 
+      rule_resources:
+        type: object
+        description: "Per-rule resource overrides for cluster execution"
+        patternProperties:
+          "^[a-z_]+$":
+            type: object
+            properties:
+              mem_mb:
+                type: integer
+                description: "Memory override for this rule"
+              threads:
+                type: integer
+                description: "Threads override for this rule"
+              runtime:
+                type: string
+                description: "Runtime limit (e.g., '1h', '30m')"
+              partition:
+                type: string
+                description: "SLURM partition override"
+              slurm_extra:
+                type: string
+                description: "Additional SLURM arguments"
+
+  # -------------------------------------------------------------------------
+  # Cluster/HPC configuration
+  # -------------------------------------------------------------------------
+  cluster:
+    type: object
+    description: "Cluster execution settings"
+    properties:
+      slurm:
+        type: object
+        description: "SLURM-specific settings"
+        properties:
+          partition:
+            type: string
+            description: "Default SLURM partition"
+            default: "normal"
+          account:
+            type: ["string", "null"]
+            description: "SLURM account (if required)"
+          qos:
+            type: ["string", "null"]
+            description: "Quality of Service"
+          extra_args:
+            type: string
+            description: "Additional sbatch arguments"
+            default: ""
+
+  # -------------------------------------------------------------------------
+  # Container configuration
+  # -------------------------------------------------------------------------
+  container:
+    type: object
+    description: "Container runtime settings"
+    properties:
+      runtime:
+        type: string
+        enum: ["conda", "docker", "apptainer", "singularity"]
+        description: "Container runtime method"
+        default: "conda"
+
+      docker_image:
+        type: string
+        description: "Docker image name"
+        default: "fusilli:latest"
+
+      singularity_image:
+        type: string
+        description: "Singularity/Apptainer SIF image path"
+        default: "fusilli.sif"
+
+      singularity_bind:
+        type: string
+        description: "Comma-separated bind paths for Singularity"
+        default: ""
+
   # -------------------------------------------------------------------------
   # Quick mode (subsampling)
   # -------------------------------------------------------------------------

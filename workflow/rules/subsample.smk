@@ -22,7 +22,10 @@ rule subsample_reads:
         "benchmarks/{experiment}/{sample}.subsample.txt"
     threads: DEFAULT_THREADS
     resources:
-        mem_mb=DEFAULT_MEMORY
+        mem_mb=8192,
+        runtime=lambda wildcards: get_runtime("subsample_reads"),
+        partition=lambda wildcards: get_partition("subsample_reads"),
+        slurm_extra=lambda wildcards: get_slurm_extra("subsample_reads"),
     shell:
         r"""
         samplerate_flag=""

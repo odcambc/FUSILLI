@@ -40,6 +40,12 @@ rule generate_breakpoint_sequences:
         variant_anchors=VARIANT_ANCHORS
     log:
         "logs/{experiment}/generate_breakpoints.log"
+    threads: 1
+    resources:
+        mem_mb=4096,
+        runtime=lambda wildcards: get_runtime("generate_breakpoint_sequences"),
+        partition=lambda wildcards: get_partition("generate_breakpoint_sequences"),
+        slurm_extra=lambda wildcards: get_slurm_extra("generate_breakpoint_sequences"),
     script:
         "../scripts/fusion_sequences.py"
 
@@ -73,7 +79,12 @@ rule detect_fusions_string:
         breakpoint_window=BREAKPOINT_WINDOW
     log:
         "logs/{experiment}/string_match/{sample}.log"
-    threads: 1  # String matching is I/O bound, not CPU bound
+    threads: 1
+    resources:
+        mem_mb=8192,
+        runtime=lambda wildcards: get_runtime("detect_fusions_string"),
+        partition=lambda wildcards: get_partition("detect_fusions_string"),
+        slurm_extra=lambda wildcards: get_slurm_extra("detect_fusions_string"),
     script:
         "../scripts/string_matcher.py"
 
@@ -110,7 +121,12 @@ rule detect_fusions_unmerged_string:
         breakpoint_window=BREAKPOINT_WINDOW
     log:
         "logs/{experiment}/string_match/{sample}.{mate}.unmerged.log"
-    threads: 1  # String matching is I/O bound, not CPU bound
+    threads: 1
+    resources:
+        mem_mb=8192,
+        runtime=lambda wildcards: get_runtime("detect_fusions_unmerged_string"),
+        partition=lambda wildcards: get_partition("detect_fusions_unmerged_string"),
+        slurm_extra=lambda wildcards: get_slurm_extra("detect_fusions_unmerged_string"),
     script:
         "../scripts/string_matcher.py"
 
@@ -173,6 +189,12 @@ rule aggregate_counts:
         mode="merged",
         breakpoint_window=BREAKPOINT_WINDOW,
         ihist_base_path=f"stats/{EXPERIMENT}/merge"
+    threads: 1
+    resources:
+        mem_mb=8192,
+        runtime=lambda wildcards: get_runtime("aggregate_counts"),
+        partition=lambda wildcards: get_partition("aggregate_counts"),
+        slurm_extra=lambda wildcards: get_slurm_extra("aggregate_counts"),
     script:
         "../scripts/aggregate_counts.py"
 
@@ -203,5 +225,11 @@ rule aggregate_unmerged_counts:
         partner_summary="results/{experiment}/unmerged_partner_counts_summary.csv"
     params:
         mode="unmerged"
+    threads: 1
+    resources:
+        mem_mb=8192,
+        runtime=lambda wildcards: get_runtime("aggregate_unmerged_counts"),
+        partition=lambda wildcards: get_partition("aggregate_unmerged_counts"),
+        slurm_extra=lambda wildcards: get_slurm_extra("aggregate_unmerged_counts"),
     script:
         "../scripts/aggregate_counts.py"

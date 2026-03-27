@@ -93,6 +93,45 @@ RESOURCES_CONFIG = config.get("resources", {})
 DEFAULT_MEMORY = RESOURCES_CONFIG.get("memory_mb", 16000)
 DEFAULT_THREADS = RESOURCES_CONFIG.get("threads", 16)
 
+# Cluster/HPC configuration
+CLUSTER_CONFIG = config.get("cluster", {})
+DEFAULT_PARTITION = CLUSTER_CONFIG.get("slurm", {}).get("partition", "normal")
+
+def get_partition(rule_name):
+    """Get SLURM partition for a rule, with per-rule override support."""
+    rule_overrides = RESOURCES_CONFIG.get("rule_resources", {}).get(rule_name, {})
+    return rule_overrides.get("partition", DEFAULT_PARTITION)
+
+def get_runtime(rule_name):
+    """Get runtime limit for a rule, with per-rule override support."""
+    rule_overrides = RESOURCES_CONFIG.get("rule_resources", {}).get(rule_name, {})
+    return rule_overrides.get("runtime", get_default_runtime(rule_name))
+
+def get_default_runtime(rule_name):
+    """Get default runtime based on rule type."""
+    runtimes = {
+        "fastqc": "30m",
+        "subsample_reads": "20m",
+        "trim_adapters": "1h",
+        "remove_contaminants": "30m",
+        "filter_quality": "30m",
+        "merge_reads": "2h",
+        "generate_breakpoint_sequences": "5m",
+        "detect_fusions_string": "4h",
+        "detect_fusions_unmerged_string": "4h",
+        "aggregate_counts": "30m",
+        "aggregate_unmerged_counts": "30m",
+        "multiqc_dir": "15m",
+        "capture_reproducibility": "5m",
+    }
+    return runtimes.get(rule_name, "1h")
+
+def get_slurm_extra(rule_name):
+    """Get extra SLURM arguments for a rule."""
+    rule_overrides = RESOURCES_CONFIG.get("rule_resources", {}).get(rule_name, {})
+    cluster_extra = CLUSTER_CONFIG.get("slurm", {}).get("extra_args", "")
+    return rule_overrides.get("slurm_extra", cluster_extra)
+
 
 # =============================================================================
 # LOAD SAMPLES

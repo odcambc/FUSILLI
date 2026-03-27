@@ -35,6 +35,12 @@ rule capture_reproducibility:
         output_dir=lambda wildcards: f"results/{wildcards.experiment}/repro"
     log:
         "logs/{experiment}/reproducibility.log"
+    threads: 1
+    resources:
+        mem_mb=1024,
+        runtime=lambda wildcards: get_runtime("capture_reproducibility"),
+        partition=lambda wildcards: get_partition("capture_reproducibility"),
+        slurm_extra=lambda wildcards: get_slurm_extra("capture_reproducibility"),
     shell:
         """
         python workflow/scripts/capture_reproducibility.py {params.output_dir} 2>&1 | tee {log}

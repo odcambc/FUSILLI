@@ -1,0 +1,25 @@
+executor: cluster-generic
+cluster-generic-submit-cmd: |
+  sbatch \
+    --parsable \
+    --job-name=smk-{rule} \
+    --cpus-per-task={threads} \
+    --mem={resources.mem_mb}M \
+    --time={resources.runtime} \
+    --partition={resources.partition} \
+    --output=logs/slurm/{rule}-%j.out \
+    --error=logs/slurm/{rule}-%j.err \
+    {resources.slurm_extra}
+
+cluster-generic-status-cmd: python3 profiles/slurm/cluster-status.py {jobid}
+
+cluster-generic-cancel-cmd: scancel {jobid}
+
+restart-times: 3
+max-jobs-per-second: 10
+max-status-checks-per-second: 1
+local-cores: 4
+latency-wait: 60
+jobs: 50
+keep-going: true
+rerun-incomplete: true
