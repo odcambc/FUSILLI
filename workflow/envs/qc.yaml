@@ -11,4 +11,4 @@ dependencies:
   - pip:
     - polars
     - multiqc
-    - git+https://github.com/odcambc/fusilli-multiqc.git
+    - fusilli-multiqc==1.0.0
