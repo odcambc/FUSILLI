@@ -49,15 +49,6 @@ snakemake -s workflow/Snakefile --software-deployment-method conda --cores 16
 
 Download or fork this repository and edit the configuration files as needed.
 
-When QC is enabled, the Snakemake QC environment also installs the companion
-MultiQC extension package from:
-
-- `https://github.com/odcambc/fusilli-multiqc`
-
-For local development of the MultiQC modules, you can temporarily swap the Git
-install in `workflow/envs/qc.yaml` for an editable install from your local
-checkout, such as `~/Projects/fusilli-multiqc`.
-
 ### Install from Docker
 
 A docker image is not currently available, but is planned for the future.
@@ -179,6 +170,7 @@ fusion_library:
   anchor:
     name: 'Met_WT'           # Constant domain in all fusions
     position: 'downstream'    # 'upstream' or 'downstream'
+    truncated_component: 'partner'  # Breakpoint positions measured from 'partner' (default) or 'anchor'
   linker_sequence: 'GGGAGC'  # Linker between domains (or '')
   partners_file: 'config/fusion_partners.csv'
   sequences_file: 'kinase_sequences.fasta'
