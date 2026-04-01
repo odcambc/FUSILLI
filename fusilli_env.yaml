@@ -6,13 +6,11 @@ channels:
 dependencies:
   - python>=3.11
   - snakemake=8
-  - biopython
   - pandas
   - numpy
   - libgfortran>=5,<6
   - bbmap
   - fastqc
-  - multiqc
   - samtools
   - pyfastx
   - pyahocorasick
