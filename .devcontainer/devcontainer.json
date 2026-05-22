@@ -1,27 +1,18 @@
 {
-  "name": "FUSILLI Dev",
-  "build": {
-    "dockerfile": "Dockerfile",
-    "context": "../..",
-    "args": {
-      "TZ": "${localEnv:TZ:America/Chicago}"
-    }
-  },
+  "name": "FUSILLI Python 3.12",
+  "image": "mcr.microsoft.com/devcontainers/python:3.12-bookworm",
+  "postCreateCommand": "pip install --upgrade pip && pip install -r requirements-dev.txt",
   "customizations": {
     "vscode": {
       "extensions": [
         "ms-python.python",
         "ms-python.vscode-pylance",
-        "snakemake.snakemake-lang",
-        "eamodio.gitlens"
-      ],
-      "settings": {
-        "python.defaultInterpreterPath": "/opt/conda/envs/FUSILLI/bin/python",
-        "terminal.integrated.defaultProfile.linux": "zsh"
-      }
+        "ms-toolsai.jupyter"
+      ]
     }
   },
-  "remoteUser": "vscode",
-  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=delegated",
-  "workspaceFolder": "/workspace"
+  "features": {
+    "ghcr.io/devcontainers/features/git:1": {}
+  },
+  "remoteUser": "vscode"
 }
