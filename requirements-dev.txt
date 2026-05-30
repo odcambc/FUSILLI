@@ -1,0 +1,13 @@
+# Python test/dev dependencies for the pip-based devcontainer.
+#
+# The full pipeline runs under conda (see fusilli_env.yaml) because it needs
+# bioinformatics binaries — bbmap, fastqc, samtools — that are not on PyPI.
+# This file covers only the pure-Python subset required to run the test suite,
+# and mirrors tests/environment.yml.
+
+pandas
+numpy
+pyfastx
+pyahocorasick
+pytest>=7.0
+pytest-cov>=4.0
