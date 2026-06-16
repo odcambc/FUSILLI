@@ -33,17 +33,25 @@ EXPERIMENT = config["experiment"]
 DATA_DIR = config["data_dir"]
 REF_DIR = config.get("ref_dir", "references")
 
-# Fusion library configuration
+# Fusion library configuration.
+# The user-facing config uses retained-domain terminology (`retained`, position
+# `5prime`/`3prime`, truncated_component `partner`/`retained`, `variant_retained`).
+# We map those to the internal representation here so the rules and scripts are
+# unchanged: position -> 'upstream'/'downstream', truncated_component -> 'partner'/'anchor'.
 FUSION_CONFIG = config["fusion_library"]
-ANCHOR_NAME = FUSION_CONFIG["anchor"]["name"]
-ANCHOR_POSITION = FUSION_CONFIG["anchor"].get("position", "downstream")
-TRUNCATED_COMPONENT = FUSION_CONFIG["anchor"].get("truncated_component", "partner")
+RETAINED_CONFIG = FUSION_CONFIG["retained"]
+ANCHOR_NAME = RETAINED_CONFIG["name"]
+_POSITION_MAP = {"5prime": "upstream", "3prime": "downstream"}
+ANCHOR_POSITION = _POSITION_MAP.get(RETAINED_CONFIG.get("position", "3prime"), "downstream")
+TRUNCATED_COMPONENT = (
+    "anchor" if RETAINED_CONFIG.get("truncated_component", "retained") == "retained" else "partner"
+)
 LINKER_SEQUENCE = FUSION_CONFIG.get("linker_sequence", "")
 PARTNERS_FILE = FUSION_CONFIG["partners_file"]
 SEQUENCES_FILE = FUSION_CONFIG["sequences_file"]
 UNFUSED_SEQUENCES_FILE = FUSION_CONFIG.get("unfused_sequences_file", None)
 EXON_PARTNERS_FILE = FUSION_CONFIG.get("exon_partners_file", None)
-VARIANT_ANCHORS = FUSION_CONFIG.get("variant_anchors", [])
+VARIANT_ANCHORS = FUSION_CONFIG.get("variant_retained", [])
 
 # Detection parameters
 DETECTION_CONFIG = config.get("detection", {})

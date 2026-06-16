@@ -6,7 +6,9 @@ stats/
 ref/
 results/
 test/
-docs/
+# Internal dev docs are not shipped. Un-ignore user-facing docs individually below.
+docs/*
+!docs/tutorial.md
 .snakemake
 .vscode/
 *.pyc

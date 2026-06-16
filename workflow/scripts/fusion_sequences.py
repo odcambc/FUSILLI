@@ -17,7 +17,7 @@ FUSION STRUCTURE:
     in-frame truncation points and create k-mer sequences spanning each breakpoint.
 
 OUTPUT FILES:
-    1. breakpoint_sequences.csv - All breakpoint k-mers for detection
+    1. junction_sequences.csv - All breakpoint k-mers for detection
     2. domain_ends.csv - K-mer ends of each domain for pre-filtering
 
 USAGE:
@@ -32,7 +32,7 @@ USAGE:
         --anchor-position downstream \\
         --linker GGGAGC \\
         --window 12 \\
-        --output-breakpoints results/breakpoint_sequences.csv \\
+        --output-breakpoints results/junction_sequences.csv \\
         --output-ends results/domain_ends.csv
 """
 
@@ -98,12 +98,12 @@ class BreakpointSequence:
         return {
             'fusion_id': self.fusion_id,
             'partner_name': self.partner_name,
-            'anchor_name': self.anchor_name,
+            'retained_name': self.anchor_name,
             'breakpoint_nt': self.breakpoint_nt,
             'breakpoint_aa': self.breakpoint_aa,
-            'breakpoint_sequence': self.sequence,
+            'junction_sequence': self.sequence,
             'full_fusion_length': self.full_fusion_length,
-            'variant_anchor_name': self.variant_anchor_name or ''
+            'variant_retained_name': self.variant_anchor_name or ''
         }
 
 
@@ -326,26 +326,40 @@ def generate_domain_ends(
     sequences: dict[str, str],
     partners: dict[str, dict],
     anchor_name: str,
-    kmer_size: int = 15
+    kmer_size: int = 15,
+    truncated_component: str = 'anchor'
 ) -> dict[str, str]:
     """
-    Generate k-mer ends for each domain (used for pre-filtering).
+    Generate the pre-filter k-mers, keyed on a sequence that is invariant across
+    breakpoints. Which sequence is invariant depends on which component is truncated:
 
-    The 3' end of each partner domain is used to quickly identify
-    which fusion partner might be present in a read before doing
-    full breakpoint matching. This remains true even when the anchor
-    is truncated, since short reads covering the breakpoint are most
-    likely to include the partner 3' end rather than the anchor 3' end.
+    - ``truncated_component == 'anchor'`` (the retained domain is truncated, the 5'
+      partner is full-length): use each partner's 3' end. Reads covering the junction
+      include the full partner 3' end, so this both gates fusion reads and narrows to
+      the specific partner.
+    - ``truncated_component == 'partner'`` (the 5' partner is truncated, the retained
+      domain is full-length): the partner 3' end varies with the breakpoint, so it is
+      not a reliable pre-filter. Instead key on the retained domain's 5' start, which
+      immediately follows every junction. This gates fusion reads; the matcher then
+      searches all breakpoints, since the partner cannot be identified from a
+      junction-spanning read.
 
     Args:
         sequences: Domain sequences
         partners: Partner configuration
-        anchor_name: Name of anchor (excluded from ends)
+        anchor_name: Name of the retained (anchor) domain
         kmer_size: Size of k-mer to extract
+        truncated_component: 'anchor' (default) or 'partner'
 
     Returns:
-        Dictionary mapping domain names to their 3' end k-mers
+        Dictionary mapping domain names to their pre-filter k-mers
     """
+    if truncated_component == 'partner':
+        anchor_seq = sequences.get(anchor_name, '')
+        if len(anchor_seq) >= kmer_size:
+            return {anchor_name: anchor_seq[:kmer_size]}
+        return {}
+
     ends = {}
 
     for partner_name, config in partners.items():
@@ -602,9 +616,9 @@ def write_breakpoints_csv(
     filepath.parent.mkdir(parents=True, exist_ok=True)
 
     fieldnames = [
-        'fusion_id', 'partner_name', 'anchor_name',
-        'breakpoint_nt', 'breakpoint_aa', 'breakpoint_sequence',
-        'full_fusion_length', 'variant_anchor_name'
+        'fusion_id', 'partner_name', 'retained_name',
+        'breakpoint_nt', 'breakpoint_aa', 'junction_sequence',
+        'full_fusion_length', 'variant_retained_name'
     ]
 
     with open(filepath, 'w', newline='') as f:
@@ -658,11 +672,11 @@ def build_variant_rows(
             'fusion_id': bp.fusion_id,
             'type': 'fusion',
             'partner_name': bp.partner_name,
-            'anchor_name': bp.anchor_name,
+            'retained_name': bp.anchor_name,
             'breakpoint_nt': bp.breakpoint_nt,
             'breakpoint_aa': bp.breakpoint_aa,
             'full_fusion_length': bp.full_fusion_length,
-            'variant_anchor_name': bp.variant_anchor_name or '',
+            'variant_retained_name': bp.variant_anchor_name or '',
             'sequence_length': partner_cfg.get('sequence_length', ''),
             'description': partner_cfg.get('description', '')
         })
@@ -674,11 +688,11 @@ def build_variant_rows(
             'fusion_id': name,
             'type': 'unfused',
             'partner_name': '',
-            'anchor_name': '',
+            'retained_name': '',
             'breakpoint_nt': '',
             'breakpoint_aa': '',
             'full_fusion_length': '',
-            'variant_anchor_name': '',
+            'variant_retained_name': '',
             'sequence_length': cfg.get('sequence_length', ''),
             'description': cfg.get('description', '')
         })
@@ -693,11 +707,11 @@ def write_variants_csv(rows: list[dict], filepath: Path) -> None:
         'fusion_id',
         'type',
         'partner_name',
-        'anchor_name',
+        'retained_name',
         'breakpoint_nt',
         'breakpoint_aa',
         'full_fusion_length',
-        'variant_anchor_name',
+        'variant_retained_name',
         'sequence_length',
         'description'
     ]
@@ -1022,7 +1036,8 @@ def run_generation(
         sequences,
         partners,
         anchor_name,
-        kmer_size=kmer_size
+        kmer_size=kmer_size,
+        truncated_component=truncated_component
     )
 
     # Write outputs

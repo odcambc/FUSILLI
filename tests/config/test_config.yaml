@@ -8,9 +8,9 @@ ref_dir: 'tests/references'
 samples_file: 'tests/config/test_samples.csv'
 
 fusion_library:
-  anchor:
+  retained:
     name: 'Met_WT'
-    position: 'downstream'
+    position: '3prime'
   linker_sequence: 'GGGAGC'
   partners_file: 'tests/config/test_partners.csv'
   sequences_file: 'test_sequences.fasta'

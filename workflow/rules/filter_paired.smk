@@ -39,7 +39,6 @@ rule trim_adapters:
     shell:
         """
         bbduk.sh \
-            -Xms2g \
             -Xmx$(( {resources.mem_mb} - 2000 ))m \
             in1={input.R1:q} \
             in2={input.R2:q} \
@@ -83,7 +82,6 @@ rule remove_contaminants:
     shell:
         """
         bbduk.sh \
-            -Xms2g \
             -Xmx$(( {resources.mem_mb} - 2000 ))m \
             in={input.R1_trim:q} \
             in2={input.R2_trim:q} \
@@ -119,7 +117,6 @@ rule filter_quality:
     shell:
         """
         bbduk.sh \
-            -Xms2g \
             -Xmx$(( {resources.mem_mb} - 2000 ))m \
             in={input.R1_clean:q} \
             in2={input.R2_clean:q} \

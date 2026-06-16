@@ -12,7 +12,7 @@ rule generate_breakpoint_sequences:
     Generate all possible breakpoint sequences for the fusion library.
 
     This rule creates:
-    - breakpoint_sequences.csv: K-mers spanning each possible breakpoint
+    - junction_sequences.csv: K-mers spanning each possible breakpoint
     - domain_ends.csv: 3' end k-mers for pre-filtering
     - unfused_sequences.csv: K-mers for unfused control sequences (if configured)
 
@@ -21,7 +21,7 @@ rule generate_breakpoint_sequences:
     input:
         sequences=get_reference_fasta()
     output:
-        breakpoints="results/{experiment}/references/breakpoint_sequences.csv",
+        breakpoints="results/{experiment}/references/junction_sequences.csv",
         ends="results/{experiment}/references/domain_ends.csv",
         unfused="results/{experiment}/references/unfused_sequences.csv",
         variants="results/{experiment}/references/variant_catalog.csv",
@@ -57,7 +57,7 @@ rule detect_fusions_string:
     """
     input:
         fastq="results/{experiment}/merged/{sample}_merged.fastq.gz",
-        breakpoints="results/{experiment}/references/breakpoint_sequences.csv",
+        breakpoints="results/{experiment}/references/junction_sequences.csv",
         ends="results/{experiment}/references/domain_ends.csv",
         unfused="results/{experiment}/references/unfused_sequences.csv"
     output:
@@ -94,7 +94,7 @@ rule detect_fusions_unmerged_string:
     """
     input:
         fastq="results/{experiment}/merged/{sample}_{mate}.unmerged.fastq.gz",
-        breakpoints="results/{experiment}/references/breakpoint_sequences.csv",
+        breakpoints="results/{experiment}/references/junction_sequences.csv",
         ends="results/{experiment}/references/domain_ends.csv",
         unfused="results/{experiment}/references/unfused_sequences.csv"
     output:
