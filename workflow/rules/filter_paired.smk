@@ -158,17 +158,29 @@ rule merge_reads:
         mem_mb=DEFAULT_MEMORY
     shell:
         """
+        # bbmerge writing separate paired unmerged files (outu1/outu2) hits a
+        # regression in recent bbmap (AssertionError on 39.81). Write a single
+        # interleaved unmerged file (outu) and split it to R1/R2 with reformat.sh,
+        # which is unaffected — robust across bbmap versions.
+        INT="results/{wildcards.experiment}/merged/{wildcards.sample}_unmerged.int.fastq.gz"
         bbmerge.sh \
             -Xmx$(( {resources.mem_mb} - 2000 ))m \
             in1={input.R1_clean:q} \
             in2={input.R2_clean:q} \
             out={output.merged:q} \
-            outu1={output.unmerged_r1:q} \
-            outu2={output.unmerged_r2:q} \
+            outu="$INT" \
             ihist={output.ihist:q} \
             ecco \
             showhiststats=t \
             overwrite=true \
             t={threads} \
             2> {log}
+        reformat.sh \
+            -Xmx$(( {resources.mem_mb} - 2000 ))m \
+            in="$INT" \
+            out1={output.unmerged_r1:q} \
+            out2={output.unmerged_r2:q} \
+            overwrite=true \
+            2>> {log}
+        rm -f "$INT"
         """
