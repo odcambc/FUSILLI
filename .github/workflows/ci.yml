@@ -65,12 +65,14 @@ jobs:
           environment-file: fusilli_env.yaml
           cache-environment: true
       - name: Add pytest to the env
-        run: pip install pytest # not shipped in fusilli_env.yaml
+        run: pip install pytest pytest-timeout # not shipped in fusilli_env.yaml
       - name: Full test suite (integration tests now run)
-        run: pytest -q
+        # Per-test timeout so a blocked Snakemake/BBTools subprocess fails fast
+        # with a stack dump instead of hanging the job for hours.
+        run: pytest -q --timeout=180 --timeout-method=thread
       - name: Tutorial end-to-end smoke test
         run: |
-          snakemake -s workflow/Snakefile counts_only --configfile config/test.yaml --cores 2
+          timeout 900 snakemake -s workflow/Snakefile counts_only --configfile config/test.yaml --cores 2
           out=results/test_experiment/counts/test_sample.fusion_counts.csv
           echo "Detected counts:"; grep -v ",0$" "$out"
           for row in \
