@@ -166,7 +166,7 @@ rule merge_reads:
             outu1={output.unmerged_r1:q} \
             outu2={output.unmerged_r2:q} \
             ihist={output.ihist:q} \
-            ecco mix \
+            ecco \
             showhiststats=t \
             overwrite=true \
             t={threads} \
