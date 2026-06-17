@@ -72,7 +72,12 @@ jobs:
         run: pytest -q -m "not slow" --timeout=180 --timeout-method=thread
       - name: Tutorial end-to-end smoke test
         run: |
-          timeout 900 snakemake -s workflow/Snakefile counts_only --configfile config/test.yaml --cores 2
+          if ! timeout 900 snakemake -s workflow/Snakefile counts_only --configfile config/test.yaml --cores 2; then
+            echo "::group::pipeline logs (on failure)"
+            find logs/test_experiment -name '*.log' -print -exec sh -c 'echo "===== $1 ====="; cat "$1"' _ {} \; 2>/dev/null
+            echo "::endgroup::"
+            exit 1
+          fi
           out=results/test_experiment/counts/test_sample.fusion_counts.csv
           echo "Detected counts:"; grep -v ",0$" "$out"
           for row in \
