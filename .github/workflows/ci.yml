@@ -79,10 +79,13 @@ jobs:
             exit 1
           fi
           out=results/test_experiment/counts/test_sample.fusion_counts.csv
-          echo "Detected counts:"; grep -v ",0$" "$out"
+          # The counts CSV uses CRLF line endings (Python csv.writer); strip CR so the
+          # whole-line match works under GNU grep (it treats the trailing \r as content).
+          detected="$(tr -d '\r' < "$out")"
+          echo "Detected counts:"; printf '%s\n' "$detected" | grep -v ",0$"
           for row in \
             "TPR_426_Met_WT,fusion,30" "TPR_423_Met_WT,fusion,25" "TPR_420_Met_WT,fusion,20" \
             "CCDC6_303_Met_WT,fusion,15" "CCDC6_300_Met_WT,fusion,10"; do
-            grep -qx "$row" "$out" || { echo "::error::missing expected count: $row"; exit 1; }
+            printf '%s\n' "$detected" | grep -qxF "$row" || { echo "::error::missing expected count: $row"; exit 1; }
           done
           echo "Smoke test passed: all 5 fusions detected with expected counts."
