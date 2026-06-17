@@ -762,6 +762,8 @@ def test_snakemake_counts_only(tmp_path):
         capture_output=True,
         text=True,
         check=False,
+        stdin=subprocess.DEVNULL,
+        timeout=120,
     )
     assert result.returncode == 0, result.stderr
 
@@ -1122,6 +1124,8 @@ def test_bbmerge_with_unmergeable_reads(tmp_path):
         capture_output=True,
         text=True,
         check=False,
+        stdin=subprocess.DEVNULL,
+        timeout=120,
     )
 
     # bbmerge should complete successfully (exit code 0 or non-zero but not crash)
@@ -1290,6 +1294,8 @@ def test_unmerged_with_bbmerge_output(tmp_path):
         capture_output=True,
         text=True,
         check=False,
+        stdin=subprocess.DEVNULL,
+        timeout=120,
     )
 
     # If bbmerge fails or doesn't produce unmerged files, create them manually
@@ -1453,6 +1459,8 @@ def test_snakemake_unmerged_detection(tmp_path):
         capture_output=True,
         text=True,
         check=False,
+        stdin=subprocess.DEVNULL,
+        timeout=120,
     )
 
     # Pipeline should complete successfully
@@ -1633,6 +1641,8 @@ def test_snakemake_with_empty_unmerged_files(tmp_path):
         capture_output=True,
         text=True,
         check=False,
+        stdin=subprocess.DEVNULL,
+        timeout=120,
     )
 
     # Pipeline should complete successfully even with empty unmerged files
@@ -1815,6 +1825,8 @@ def test_snakemake_missing_unmerged_files_fails(tmp_path):
         capture_output=True,
         text=True,
         check=False,
+        stdin=subprocess.DEVNULL,
+        timeout=120,
     )
 
     # The pipeline should fail because:
@@ -2021,6 +2033,8 @@ def test_snakemake_full_pipeline_with_multiqc(tmp_path):
         capture_output=True,
         text=True,
         check=False,
+        stdin=subprocess.DEVNULL,
+        timeout=120,
     )
 
     # Pipeline should complete successfully
