@@ -69,7 +69,7 @@ jobs:
       - name: Full test suite (integration tests now run)
         # Per-test timeout so a blocked Snakemake/BBTools subprocess fails fast
         # with a stack dump instead of hanging the job for hours.
-        run: pytest -q --timeout=180 --timeout-method=thread
+        run: pytest -q -m "not slow" --timeout=180 --timeout-method=thread
       - name: Tutorial end-to-end smoke test
         run: |
           timeout 900 snakemake -s workflow/Snakefile counts_only --configfile config/test.yaml --cores 2

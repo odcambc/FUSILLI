@@ -159,6 +159,7 @@ rule merge_reads:
     shell:
         """
         bbmerge.sh \
+            -Xmx$(( {resources.mem_mb} - 2000 ))m \
             in1={input.R1_clean:q} \
             in2={input.R2_clean:q} \
             out={output.merged:q} \

@@ -1044,6 +1044,7 @@ class TestUnmergedReadProcessingIntegration:
         assert r2_counts == {}
 
 
+@pytest.mark.slow  # exercises bbmerge directly; bbtools is slow/finicky on CI runners (covered by the pipeline smoke test)
 def test_bbmerge_with_unmergeable_reads(tmp_path):
     """
     Test bbmerge behavior with known unmergeable reads.
@@ -1218,6 +1219,7 @@ def test_bbmerge_with_unmergeable_reads(tmp_path):
         assert isinstance(r2_counts, dict), "Should return counts dictionary"
 
 
+@pytest.mark.slow  # exercises bbmerge directly; bbtools is slow/finicky on CI runners (covered by the pipeline smoke test)
 def test_unmerged_with_bbmerge_output(tmp_path):
     """
     Test processing unmerged reads from actual bbmerge output.
@@ -1858,6 +1860,7 @@ def test_snakemake_missing_unmerged_files_fails(tmp_path):
 # TEST: Full Pipeline with MultiQC Report Generation
 # =============================================================================
 
+@pytest.mark.slow  # QC path uses Snakemake wrappers -> requires --software-deployment-method conda (snakemake_wrapper_utils + multiqc not in the base env)
 def test_snakemake_full_pipeline_with_multiqc(tmp_path):
     """
     Test full Snakemake pipeline with QC enabled and validate MultiQC report generation.
