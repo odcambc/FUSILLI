@@ -103,20 +103,6 @@ rule counts_only:
             f"results/{EXPERIMENT}/sensitivity_metrics.csv",
             f"results/{EXPERIMENT}/decay_metrics.csv",
         ]
-        + (
-            expand(
-                "results/{experiment}/counts/{sample}.{mate}.unmerged_fusion_counts.csv",
-                experiment=EXPERIMENT,
-                sample=SAMPLES,
-                mate=["R1", "R2"]
-            )
-            + [
-                f"results/{EXPERIMENT}/unmerged_counts_summary.csv",
-                f"results/{EXPERIMENT}/unmerged_qc_metrics.csv",
-                f"results/{EXPERIMENT}/unmerged_partner_counts_summary.csv",
-            ]
-            if UNMERGED_DETECTION else []
-        )
 
 
 rule summary:

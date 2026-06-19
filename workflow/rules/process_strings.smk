@@ -53,7 +53,8 @@ rule detect_fusions_string:
     2. Match: Search for specific breakpoint sequences
     3. Unfused: Detect unfused control sequences
 
-    Input is the merged (error-corrected) reads from preprocessing.
+    Input is the error-corrected reads (ecco) from preprocessing — both mates at native
+    length; counting dedups per read pair so a junction seen on both mates counts once.
     """
     input:
         fastq="results/{experiment}/merged/{sample}_merged.fastq.gz",
@@ -77,42 +78,6 @@ rule detect_fusions_string:
     script:
         "../scripts/string_matcher.py"
 
-
-rule detect_fusions_unmerged_string:
-    """
-    Detect fusion breakpoints in unmerged reads using string matching.
-
-    This rule processes R1 and R2 unmerged reads separately (via {mate} wildcard).
-    It uses the same two-stage algorithm as merged detection:
-    1. Pre-filter: Check if read contains any partner domain 3' end
-    2. Match: Search for specific breakpoint sequences
-    3. Unfused: Detect unfused control sequences
-
-    Input is the unmerged reads from bbmerge (reads that failed to merge).
-    Output files use .unmerged_fusion_counts.csv suffix to keep counts distinct
-    from merged read counts. Empty unmerged files are handled gracefully.
-    """
-    input:
-        fastq="results/{experiment}/merged/{sample}_{mate}.unmerged.fastq.gz",
-        breakpoints="results/{experiment}/references/junction_sequences.csv",
-        ends="results/{experiment}/references/domain_ends.csv",
-        unfused="results/{experiment}/references/unfused_sequences.csv"
-    output:
-        counts="results/{experiment}/counts/{sample}.{mate}.unmerged_fusion_counts.csv",
-        metrics="results/{experiment}/counts/{sample}.{mate}.unmerged_fusion_metrics.json",
-        partner_counts="results/{experiment}/counts/{sample}.{mate}.unmerged_partner_counts.csv"
-    params:
-        show_progress=SHOW_PROGRESS,
-        progress_interval=PROGRESS_INTERVAL,
-        orientation_check=ORIENTATION_CHECK,
-        prefilter_fallback=PREFILTER_FALLBACK,
-        linker_sequence=LINKER_SEQUENCE,
-        breakpoint_window=BREAKPOINT_WINDOW
-    log:
-        "logs/{experiment}/string_match/{sample}.{mate}.unmerged.log"
-    threads: 1  # String matching is I/O bound, not CPU bound
-    script:
-        "../scripts/string_matcher.py"
 
 rule aggregate_counts:
     """
@@ -172,36 +137,7 @@ rule aggregate_counts:
     params:
         mode="merged",
         breakpoint_window=BREAKPOINT_WINDOW,
-        ihist_base_path=f"stats/{EXPERIMENT}/merge"
-    script:
-        "../scripts/aggregate_counts.py"
-
-
-rule aggregate_unmerged_counts:
-    """
-    Aggregate unmerged fusion counts across all samples into summary files.
-    """
-    input:
-        counts=expand(
-            "results/{{experiment}}/counts/{sample}.{mate}.unmerged_fusion_counts.csv",
-            sample=SAMPLES,
-            mate=["R1", "R2"]
-        ),
-        metrics=expand(
-            "results/{{experiment}}/counts/{sample}.{mate}.unmerged_fusion_metrics.json",
-            sample=SAMPLES,
-            mate=["R1", "R2"]
-        ),
-        partner_counts=expand(
-            "results/{{experiment}}/counts/{sample}.{mate}.unmerged_partner_counts.csv",
-            sample=SAMPLES,
-            mate=["R1", "R2"]
-        )
-    output:
-        summary="results/{experiment}/unmerged_counts_summary.csv",
-        qc_metrics="results/{experiment}/unmerged_qc_metrics.csv",
-        partner_summary="results/{experiment}/unmerged_partner_counts_summary.csv"
-    params:
-        mode="unmerged"
+        ihist_base_path=f"stats/{EXPERIMENT}/merge",
+        lhist_base_path=f"stats/{EXPERIMENT}/trim"
     script:
         "../scripts/aggregate_counts.py"

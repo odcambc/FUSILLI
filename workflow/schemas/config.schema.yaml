@@ -152,11 +152,6 @@ properties:
         description: "Fallback to full breakpoint scan when pre-filter misses (slow)"
         default: false
 
-      unmerged_detection:
-        type: boolean
-        description: "Also scan unmerged mates for breakpoint matches"
-        default: false
-
   # -------------------------------------------------------------------------
   # Sequencing parameters
   # -------------------------------------------------------------------------

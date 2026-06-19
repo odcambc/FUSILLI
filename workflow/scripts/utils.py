@@ -896,3 +896,38 @@ def parse_ihist(path: str | Path) -> dict | None:
             break
 
     return {"median": median}
+
+
+def parse_lhist(path: str | Path) -> int | None:
+    """
+    Parse a BBDuk lhist (read-length histogram) to recover the read length.
+
+    Args:
+        path: Path to the lhist file
+
+    Returns:
+        The modal read length (length bin with the highest count), or None if unavailable.
+    """
+    path = Path(path)
+    if not path.exists():
+        return None
+
+    best_len: int | None = None
+    best_count = -1.0
+    with open(path, "r") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            parts = line.split()
+            if len(parts) < 2:
+                continue
+            try:
+                length = int(float(parts[0]))
+                count = float(parts[1])
+            except ValueError:
+                continue
+            if count > best_count:
+                best_len, best_count = length, count
+
+    return best_len

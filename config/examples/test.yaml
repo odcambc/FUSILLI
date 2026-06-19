@@ -26,7 +26,6 @@ detection:
   kmer_size: 15
   orientation_check: false
   prefilter_fallback: false
-  unmerged_detection: false
 
 sequencing:
   paired: true
