@@ -136,7 +136,7 @@ rule references:
     Useful for validating configuration without processing reads.
     """
     input:
-        f"results/{EXPERIMENT}/references/breakpoint_sequences.csv",
+        f"results/{EXPERIMENT}/references/junction_sequences.csv",
         f"results/{EXPERIMENT}/references/domain_ends.csv"
 
 

@@ -40,23 +40,23 @@ properties:
     type: object
     description: "Fusion library structure definition"
     properties:
-      anchor:
+      retained:
         type: object
-        description: "The constant domain in all fusions (e.g., kinase domain)"
+        description: "The retained (constant) domain present in every fusion (e.g., the kinase domain)"
         properties:
           name:
             type: string
-            description: "Anchor domain name (must match FASTA header)"
+            description: "Retained domain name (must match FASTA header)"
           position:
             type: string
-            enum: ["upstream", "downstream"]
-            description: "Position of anchor: 'upstream' (5') or 'downstream' (3')"
-            default: "downstream"
+            enum: ["5prime", "3prime"]
+            description: "Where the retained domain sits in the construct: '5prime' or '3prime' (default)"
+            default: "3prime"
           truncated_component:
             type: string
-            enum: ["partner", "anchor"]
-            description: "Which component is truncated when generating fusions"
-            default: "partner"
+            enum: ["partner", "retained"]
+            description: "Which side is variably truncated: 'partner' (the fusion partner) or 'retained' (default; the retained domain, e.g. kinase N-terminus / exon 14 skipping)"
+            default: "retained"
         required: [name]
 
       linker_sequence:
@@ -75,15 +75,15 @@ properties:
         description: "Reference FASTA filename (in ref_dir)"
         pattern: ".*\\.(fasta|fa|fna)$"
 
-      variant_anchors:
+      variant_retained:
         type: array
-        description: "Variant anchor sequences (for control fusions with different anchors)"
+        description: "Variant retained-domain sequences (for control fusions with a different retained domain)"
         items:
           type: object
           properties:
             name:
               type: string
-              description: "Variant anchor sequence name (must match FASTA header)"
+              description: "Variant retained-domain sequence name (must match FASTA header)"
             partners:
               type: array
               items:
@@ -108,7 +108,7 @@ properties:
         description: "Path to exon-based partners CSV file (optional)"
         pattern: ".*\\.csv$"
 
-    required: [anchor, partners_file, sequences_file]
+    required: [retained, partners_file, sequences_file]
 
   # -------------------------------------------------------------------------
   # Detection parameters

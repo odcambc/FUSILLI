@@ -586,15 +586,15 @@ def test_full_run_small_dataset(tmp_path):
 
     seq_counts: dict[str, int] = {}
     for row in bp_rows:
-        seq = row["breakpoint_sequence"]
+        seq = row["junction_sequence"]
         seq_counts[seq] = seq_counts.get(seq, 0) + 1
 
     target_row = next(
-        (row for row in bp_rows if seq_counts[row["breakpoint_sequence"]] == 1),
+        (row for row in bp_rows if seq_counts[row["junction_sequence"]] == 1),
         bp_rows[0],
     )
     target_id = target_row["fusion_id"]
-    target_seq = target_row["breakpoint_sequence"]
+    target_seq = target_row["junction_sequence"]
 
     reads = [f"AAAA{target_seq}TTTT"] * 3 + [
         "ACGT" * 10,
@@ -691,10 +691,10 @@ def test_snakemake_counts_only(tmp_path):
             f"ref_dir: '{ref_dir.name}'",
             f"samples_file: '{samples_path.name}'",
             "fusion_library:",
-            "  anchor:",
+            "  retained:",
             "    name: 'Anchor'",
-            "    position: 'downstream'",
-            "    truncated_component: 'anchor'",
+            "    position: '3prime'",
+            "    truncated_component: 'retained'",
             "  linker_sequence: 'GGGAGC'",
             f"  partners_file: '{partners_path.name}'",
             f"  sequences_file: '{fasta_path.name}'",
@@ -756,12 +756,14 @@ def test_snakemake_counts_only(tmp_path):
             "--shared-fs-usage",
             "none",
             "--",
-            "counts_only",
+            f"results/{experiment}/counts/{sample}.fusion_counts.csv",
         ],
         env=env,
         capture_output=True,
         text=True,
         check=False,
+        stdin=subprocess.DEVNULL,
+        timeout=120,
     )
     assert result.returncode == 0, result.stderr
 
@@ -1042,6 +1044,7 @@ class TestUnmergedReadProcessingIntegration:
         assert r2_counts == {}
 
 
+@pytest.mark.slow  # exercises bbmerge directly; bbtools is slow/finicky on CI runners (covered by the pipeline smoke test)
 def test_bbmerge_with_unmergeable_reads(tmp_path):
     """
     Test bbmerge behavior with known unmergeable reads.
@@ -1122,6 +1125,8 @@ def test_bbmerge_with_unmergeable_reads(tmp_path):
         capture_output=True,
         text=True,
         check=False,
+        stdin=subprocess.DEVNULL,
+        timeout=120,
     )
 
     # bbmerge should complete successfully (exit code 0 or non-zero but not crash)
@@ -1214,6 +1219,7 @@ def test_bbmerge_with_unmergeable_reads(tmp_path):
         assert isinstance(r2_counts, dict), "Should return counts dictionary"
 
 
+@pytest.mark.slow  # exercises bbmerge directly; bbtools is slow/finicky on CI runners (covered by the pipeline smoke test)
 def test_unmerged_with_bbmerge_output(tmp_path):
     """
     Test processing unmerged reads from actual bbmerge output.
@@ -1290,6 +1296,8 @@ def test_unmerged_with_bbmerge_output(tmp_path):
         capture_output=True,
         text=True,
         check=False,
+        stdin=subprocess.DEVNULL,
+        timeout=120,
     )
 
     # If bbmerge fails or doesn't produce unmerged files, create them manually
@@ -1401,10 +1409,10 @@ def test_snakemake_unmerged_detection(tmp_path):
             f"ref_dir: '{ref_dir.name}'",
             f"samples_file: '{samples_path.name}'",
             "fusion_library:",
-            "  anchor:",
+            "  retained:",
             "    name: 'Anchor'",
-            "    position: 'downstream'",
-            "    truncated_component: 'anchor'",
+            "    position: '3prime'",
+            "    truncated_component: 'retained'",
             "  linker_sequence: 'GGGAGC'",
             f"  partners_file: '{partners_path.name}'",
             f"  sequences_file: '{fasta_path.name}'",
@@ -1445,12 +1453,16 @@ def test_snakemake_unmerged_detection(tmp_path):
             "--shared-fs-usage",
             "none",
             "--",
-            "counts_only",
+            f"results/{experiment}/counts/{sample}.fusion_counts.csv",
+            f"results/{experiment}/counts/{sample}.R1.unmerged_fusion_counts.csv",
+            f"results/{experiment}/counts/{sample}.R2.unmerged_fusion_counts.csv",
         ],
         env=env,
         capture_output=True,
         text=True,
         check=False,
+        stdin=subprocess.DEVNULL,
+        timeout=120,
     )
 
     # Pipeline should complete successfully
@@ -1579,10 +1591,10 @@ def test_snakemake_with_empty_unmerged_files(tmp_path):
             f"ref_dir: '{ref_dir.name}'",
             f"samples_file: '{samples_path.name}'",
             "fusion_library:",
-            "  anchor:",
+            "  retained:",
             "    name: 'Anchor'",
-            "    position: 'downstream'",
-            "    truncated_component: 'anchor'",
+            "    position: '3prime'",
+            "    truncated_component: 'retained'",
             "  linker_sequence: 'GGGAGC'",
             f"  partners_file: '{partners_path.name}'",
             f"  sequences_file: '{fasta_path.name}'",
@@ -1623,12 +1635,16 @@ def test_snakemake_with_empty_unmerged_files(tmp_path):
             "--shared-fs-usage",
             "none",
             "--",
-            "counts_only",
+            f"results/{experiment}/counts/{sample}.fusion_counts.csv",
+            f"results/{experiment}/counts/{sample}.R1.unmerged_fusion_counts.csv",
+            f"results/{experiment}/counts/{sample}.R2.unmerged_fusion_counts.csv",
         ],
         env=env,
         capture_output=True,
         text=True,
         check=False,
+        stdin=subprocess.DEVNULL,
+        timeout=120,
     )
 
     # Pipeline should complete successfully even with empty unmerged files
@@ -1744,10 +1760,10 @@ def test_snakemake_missing_unmerged_files_fails(tmp_path):
             f"ref_dir: '{ref_dir.name}'",
             f"samples_file: '{samples_path.name}'",
             "fusion_library:",
-            "  anchor:",
+            "  retained:",
             "    name: 'Anchor'",
-            "    position: 'downstream'",
-            "    truncated_component: 'anchor'",
+            "    position: '3prime'",
+            "    truncated_component: 'retained'",
             "  linker_sequence: 'GGGAGC'",
             f"  partners_file: '{partners_path.name}'",
             f"  sequences_file: '{fasta_path.name}'",
@@ -1811,6 +1827,8 @@ def test_snakemake_missing_unmerged_files_fails(tmp_path):
         capture_output=True,
         text=True,
         check=False,
+        stdin=subprocess.DEVNULL,
+        timeout=120,
     )
 
     # The pipeline should fail because:
@@ -1842,6 +1860,7 @@ def test_snakemake_missing_unmerged_files_fails(tmp_path):
 # TEST: Full Pipeline with MultiQC Report Generation
 # =============================================================================
 
+@pytest.mark.slow  # QC path uses Snakemake wrappers -> requires --software-deployment-method conda (snakemake_wrapper_utils + multiqc not in the base env)
 def test_snakemake_full_pipeline_with_multiqc(tmp_path):
     """
     Test full Snakemake pipeline with QC enabled and validate MultiQC report generation.
@@ -1957,10 +1976,10 @@ def test_snakemake_full_pipeline_with_multiqc(tmp_path):
             f"ref_dir: '{ref_dir.name}'",
             f"samples_file: '{samples_path.name}'",
             "fusion_library:",
-            "  anchor:",
+            "  retained:",
             "    name: 'Anchor'",
-            "    position: 'downstream'",
-            "    truncated_component: 'anchor'",
+            "    position: '3prime'",
+            "    truncated_component: 'retained'",
             "  linker_sequence: 'GGGAGC'",
             f"  partners_file: '{partners_path.name}'",
             f"  sequences_file: '{fasta_path.name}'",
@@ -2017,6 +2036,8 @@ def test_snakemake_full_pipeline_with_multiqc(tmp_path):
         capture_output=True,
         text=True,
         check=False,
+        stdin=subprocess.DEVNULL,
+        timeout=120,
     )
 
     # Pipeline should complete successfully

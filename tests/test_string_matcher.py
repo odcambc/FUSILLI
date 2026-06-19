@@ -135,7 +135,7 @@ class TestLoadBreakpointSequences:
 
     def test_loads_csv_correctly(self, tmp_path):
         """Should parse breakpoint CSV into nested dict."""
-        csv_content = """fusion_id,partner_name,anchor_name,breakpoint_nt,breakpoint_aa,breakpoint_sequence,full_fusion_length
+        csv_content = """fusion_id,partner_name,retained_name,breakpoint_nt,breakpoint_aa,junction_sequence,full_fusion_length
 TPR_126_Met_WT,TPR,Met_WT,126,42,CTGAAGGGGCGGGGGAGCATGAAA,372
 TPR_129_Met_WT,TPR,Met_WT,129,43,AAGGGGCGGCATGGGAGCATGAAA,375
 CCDC6_300_Met_WT,CCDC6,Met_WT,300,100,GCCAGCGTGACCGGGAGCATGAAA,546
@@ -152,7 +152,7 @@ CCDC6_300_Met_WT,CCDC6,Met_WT,300,100,GCCAGCGTGACCGGGAGCATGAAA,546
 
     def test_organizes_by_partner(self, tmp_path):
         """Should organize breakpoints by partner name for fast lookup."""
-        csv_content = """fusion_id,partner_name,anchor_name,breakpoint_nt,breakpoint_aa,breakpoint_sequence,full_fusion_length
+        csv_content = """fusion_id,partner_name,retained_name,breakpoint_nt,breakpoint_aa,junction_sequence,full_fusion_length
 A_1_X,A,X,1,1,AAA,10
 A_2_X,A,X,2,1,BBB,10
 B_1_X,B,X,1,1,CCC,10

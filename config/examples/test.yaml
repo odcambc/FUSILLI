@@ -10,10 +10,10 @@ ref_dir: 'references'
 samples_file: 'config/examples/samples.csv'
 
 fusion_library:
-  anchor:
+  retained:
     name: 'Met_WT'
-    position: 'downstream'
-    truncated_component: 'anchor'
+    position: '3prime'
+    truncated_component: 'retained'
   linker_sequence: 'GGGAGC'
   partners_file: 'config/examples/fusion_partners.csv'
   sequences_file: 'kinase_sequences_hov.fasta'

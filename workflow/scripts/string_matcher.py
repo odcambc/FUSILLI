@@ -15,7 +15,7 @@ USAGE:
     # Standalone
     python string_matcher.py \
         -i reads.fastq.gz \
-        -b breakpoint_sequences.csv \
+        -b junction_sequences.csv \
         -e domain_ends.csv \
         -o fusion_counts.csv \
         --progress
@@ -166,7 +166,7 @@ def load_breakpoint_sequences(filepath: str) -> dict[str, dict]:
         for row in reader:
             partner = row['partner_name']
             fusion_id = row['fusion_id']
-            sequence = row['breakpoint_sequence']
+            sequence = row['junction_sequence']
             breakpoints[partner][fusion_id] = sequence
 
     return dict(breakpoints)
@@ -517,6 +517,18 @@ def _find_matches_in_read_aho(
                     matches.extend(domain_matches)
                     if domain_matches:
                         forward_hit = True
+                elif breakpoints_automaton is not None:
+                    # The pre-filter matched the retained domain's 5' start
+                    # (partner-truncation mode): the partner cannot be identified from a
+                    # junction-spanning read, so search all breakpoints in this gated read.
+                    for _partner, fusion_id in find_matches_aho(sequence, breakpoints_automaton):
+                        matches.append(fusion_id)
+                        forward_hit = True
+                    if orientation_check and rc_breakpoints_automaton is not None:
+                        rc_seq = rc_sequence if rc_sequence is not None else reverse_complement(sequence)
+                        for _partner, fusion_id in find_matches_aho(rc_seq, rc_breakpoints_automaton):
+                            matches.append(fusion_id)
+                            rc_hit = True
 
                 if orientation_check and rc_partner_breakpoints_automata and domain in rc_partner_breakpoints_automata:
                     if rc_sequence is None:
@@ -628,6 +640,20 @@ def _find_matches_in_read_original(
 
     for domain in matched_domains:
         if domain not in breakpoints:
+            # The pre-filter matched the retained domain's 5' start (partner-truncation
+            # mode): search all breakpoints in this gated read.
+            for bp_map in breakpoints.values():
+                for fusion_id, bp_sequence in bp_map.items():
+                    if bp_sequence in sequence:
+                        matches.append(fusion_id)
+                        forward_hit = True
+            if orientation_check and rc_breakpoints:
+                rc_seq = reverse_complement(sequence) if rc_sequence is None else rc_sequence
+                for bp_map in rc_breakpoints.values():
+                    for fusion_id, bp_sequence in bp_map.items():
+                        if bp_sequence in rc_seq:
+                            matches.append(fusion_id)
+                            rc_hit = True
             continue
 
         for fusion_id, bp_sequence in breakpoints[domain].items():

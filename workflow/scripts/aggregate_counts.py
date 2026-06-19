@@ -960,4 +960,10 @@ def main_cli() -> None:
 
 
 if __name__ == "__main__":
-    main_cli()
+    # Match the dispatch pattern used by the other scripts: Snakemake injects a
+    # `snakemake` object; standalone CLI use falls back to argparse.
+    try:
+        snakemake  # noqa: F821
+        main_snakemake(snakemake)  # noqa: F821
+    except NameError:
+        main_cli()

@@ -42,12 +42,12 @@ samples_file: 'config/samples.csv'
 # This section defines the structure of your fusion library
 
 fusion_library:
-  # The "anchor" is the constant domain present in all fusions
+  # The "retained" domain is the constant domain present in every fusion (e.g. the kinase domain)
   # In a typical kinase fusion library, this is the kinase domain
-  anchor:
+  retained:
     name: 'Met_WT'              # Must match a sequence name in the reference FASTA
-    position: 'downstream'      # Where the anchor appears: 'upstream' (5') or 'downstream' (3')
-    truncated_component: 'anchor'   # Which side is truncated: 'partner' or 'anchor'
+    position: '3prime'          # Where the retained domain sits: '5prime' or '3prime'
+    truncated_component: 'retained'  # Which side is truncated: 'partner' (5') or 'retained' (3', default)
 
   # The linker sequence connecting fusion partners (if any)
   # Set to empty string '' if no linker
@@ -65,8 +65,8 @@ fusion_library:
   # Optional: unfused control sequences for background detection
   unfused_sequences_file: 'config/kinase_unfused.csv'
 
-  # Optional: variant anchors for control fusions
-  # variant_anchors:
+  # Optional: variant retained domains for control fusions
+  # variant_retained:
   #   - name: 'Met_WT'
   #     all_partners: true
   #     description: 'Control fusions with Met_WT against all partners'

@@ -1,0 +1,91 @@
+name: CI
+
+# Runs on PRs (all branches) and pushes to main, plus a weekly run to catch
+# dependency bit-rot (FUSILLI is expected to be used rarely).
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 6 * * 1" # Mondays 06:00 UTC
+
+# Cancel superseded runs on the same ref.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # Fast feedback: pure-Python unit tests. The Snakemake/BBTools integration
+  # tests skip automatically here (no tools on PATH).
+  unit:
+    name: Unit tests (Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: pip install -r requirements-dev.txt
+      - run: pytest -q
+
+  # Exercises the pure-Python matching path: pyahocorasick is deliberately NOT
+  # installed, so HAS_AHOCORASICK is False and the fallback branches run. The
+  # optional fast-path tests skip; everything else runs without the C library.
+  fallback:
+    name: Pure-Python fallback (no pyahocorasick)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pandas numpy pyfastx "pytest>=7" # note: no pyahocorasick
+      - run: pytest -q
+
+  # The important one: the real shipped conda env (BBTools + Snakemake + the fast
+  # libraries), so the integration tests actually run and the end-to-end tutorial
+  # path is validated — the scenario that hid the aggregate_counts blocker.
+  integration:
+    name: Integration + tutorial smoke test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -el {0} # micromamba activates the FUSILLI env for these steps
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-file: fusilli_env.yaml
+          cache-environment: true
+      - name: Add pytest to the env
+        run: pip install pytest pytest-timeout # not shipped in fusilli_env.yaml
+      - name: Full test suite (integration tests now run)
+        # Per-test timeout so a blocked Snakemake/BBTools subprocess fails fast
+        # with a stack dump instead of hanging the job for hours.
+        run: pytest -q -m "not slow" --timeout=180 --timeout-method=thread
+      - name: Tutorial end-to-end smoke test
+        run: |
+          if ! timeout 900 snakemake -s workflow/Snakefile counts_only --configfile config/test.yaml --cores 2; then
+            echo "::group::pipeline logs (on failure)"
+            find logs/test_experiment -name '*.log' -print -exec sh -c 'echo "===== $1 ====="; cat "$1"' _ {} \; 2>/dev/null
+            echo "::endgroup::"
+            exit 1
+          fi
+          out=results/test_experiment/counts/test_sample.fusion_counts.csv
+          # The counts CSV uses CRLF line endings (Python csv.writer); strip CR so the
+          # whole-line match works under GNU grep (it treats the trailing \r as content).
+          detected="$(tr -d '\r' < "$out")"
+          echo "Detected counts:"; printf '%s\n' "$detected" | grep -v ",0$"
+          for row in \
+            "TPR_426_Met_WT,fusion,30" "TPR_423_Met_WT,fusion,25" "TPR_420_Met_WT,fusion,20" \
+            "CCDC6_303_Met_WT,fusion,15" "CCDC6_300_Met_WT,fusion,10"; do
+            printf '%s\n' "$detected" | grep -qxF "$row" || { echo "::error::missing expected count: $row"; exit 1; }
+          done
+          echo "Smoke test passed: all 5 fusions detected with expected counts."

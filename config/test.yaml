@@ -10,10 +10,10 @@ ref_dir: 'tests/references'
 samples_file: 'tests/config/test_samples.csv'
 
 fusion_library:
-  anchor:
+  retained:
     name: 'Met_WT'
-    position: 'downstream'
-    truncated_component: 'anchor'
+    position: '3prime'
+    truncated_component: 'partner'   # matches the bundled synthetic reads / tests/expected_counts.csv
   linker_sequence: 'GGGAGC'
   partners_file: 'tests/config/test_partners.csv'
   sequences_file: 'test_sequences.fasta'

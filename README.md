@@ -6,9 +6,9 @@ A Snakemake pipeline for analyzing mutational scanning data from fusion protein 
 
 ## Overview
 
-FUSILLI is a tool for analyzing mutational scanning data from fusion protein libraries. It was designed for a project building off work studying MET kinase domain fusions and exon skipping in disrupting signalling pathways using deep mutational scanning (DMS) ([Estevam et al., 2024](https://elifesciences.org/articles/91619), [Estevam et al., 2025](https://elifesciences.org/articles/101882)). This tool was created to support the analysis of a library consisting of a variety of domains (TPR, CCDC6, etc.) fused to a variably truncated anchor domain (e.g, MET kinase).
+FUSILLI is a tool for analyzing mutational scanning data from fusion protein libraries. It was designed for a project building off work studying MET kinase domain fusions and exon skipping in disrupting signalling pathways using deep mutational scanning (DMS) ([Estevam et al., 2024](https://elifesciences.org/articles/91619), [Estevam et al., 2025](https://elifesciences.org/articles/101882)). This tool was created to support the analysis of a library consisting of a variety of **fusion partner** domains (TPR, CCDC6, etc.) fused to a variably truncated **retained domain** (e.g., the MET kinase domain).
 
-FUSILLI processes short-read sequencing data from libraries of fusion constructs (e.g., kinase domain fusions) and produces counts of detected variants-specific fusion breakpoints. It's intended to be used in DMS-type experiments where counting the number and identity of specific variants is the primary goal.
+FUSILLI processes short-read sequencing data from libraries of fusion constructs (e.g., kinase domain fusions) and produces counts of detected variant-specific fusion junctions. It applies the deep mutational scanning (DMS) approach — a pooled library read out by NGS — where counting the number and identity of specific variants is the primary goal.
 
 ```(markdown)
 ┌─────────────────────────────────────────────────────────────────────────┐
@@ -17,10 +17,10 @@ FUSILLI processes short-read sequencing data from libraries of fusion constructs
 │                                                                         │
 │   A typical kinase fusion:                                              │
 │                                                                         │
-│   [Partner N-term]────[Linker]────[Kinase Domain (truncated)]           │
+│   [ fusion partner ]──[ linker ]──[ retained domain ]                   │
 │         ↑                              ↑                                │
-│    Full length partner            Variable truncated anchor             │
-│    (breakpoint)                                                         │
+│    variable (TPR, CCDC6)          constant (e.g. MET kinase)            │
+│    (junction →)                                                         │
 │                                                                         │
 │   Example: TPR-MET fusion                                               │
 │   [TPR]──[GS]──[MET kinase domain (truncated)]                          │
@@ -29,6 +29,8 @@ FUSILLI processes short-read sequencing data from libraries of fusion constructs
 ```
 
 ## Quick Start
+
+> **New to FUSILLI?** Follow the [hands-on tutorial](docs/tutorial.md) — it runs the bundled test dataset end to end (no real data needed) and shows you how to read the results.
 
 ```bash
 git clone https://github.com/odcambc/FUSILLI
@@ -60,7 +62,7 @@ The details of an experiment are specified in a YAML configuration file plus a f
 - A main config file describing paths, library structure, and analysis options
 - A samples CSV describing experimental conditions and FASTQ file prefixes
 - A fusion partners CSV listing the partner domains to include
-- A reference FASTA containing the anchor and partner sequences
+- A reference FASTA containing the retained domain and the fusion partner sequences
 
 The active config schema is defined in `workflow/schemas/config.schema.yaml`.
 
@@ -105,7 +107,7 @@ Repository examples:
 1. **Edit the main config file** (`config/config.yaml`):
    - Set `experiment` name
    - Set `data_dir` to your FASTQ directory
-   - Configure your fusion library (anchor, partners, linker)
+   - Configure your fusion library (retained domain, fusion partners, linker)
 
 2. **Create your samples file** (`config/samples.csv`):
    This file defines the sequencing samples to be processed. It should contain the following columns:
@@ -136,7 +138,7 @@ Repository examples:
    - `description`: Human-readable description (optional)
 
 4. **Add reference sequences** to `references/`:
-   - FASTA file with sequences for anchor and all partners
+   - FASTA file with sequences for the retained domain and all fusion partners
    - Sequence names must match `partner_name` in `fusion_partners.csv`
 
 ### Run the pipeline
@@ -156,56 +158,29 @@ snakemake -s workflow/Snakefile --software-deployment-method conda --cores 16
 
 ### Main Config (`config/config.yaml`)
 
-```yaml
-# Unique experiment identifier
-experiment: 'my_experiment'
+Only four top-level keys are required; everything else is optional with defaults:
 
-# Data locations
+```yaml
+experiment: 'my_experiment'              # names output paths: results/{experiment}/
 data_dir: '/path/to/fastq/files'
-ref_dir: 'references'
 samples_file: 'config/samples.csv'
 
-# Fusion library definition
 fusion_library:
-  anchor:
-    name: 'Met_WT'           # Constant domain in all fusions
-    position: 'downstream'    # 'upstream' or 'downstream'
-    truncated_component: 'partner'  # Breakpoint positions measured from 'partner' (default) or 'anchor'
-  linker_sequence: 'GGGAGC'  # Linker between domains (or '')
+  retained:                              # the retained / constant domain
+    name: 'Met_WT'                       # must match a FASTA header
+    truncated_component: 'retained'      # 'retained' (default; 3′ side) or 'partner' (5′ side) — see Breakpoint Conventions
+  linker_sequence: 'GGGAGC'              # or '' for none
   partners_file: 'config/fusion_partners.csv'
-  sequences_file: 'kinase_sequences.fasta'
-
-# Detection parameters
-detection:
-  method: 'string'           # Detection algorithm
-  breakpoint_window: 12      # nt on each side of breakpoint
-  maintain_frame: true       # Only in-frame breakpoints
-  kmer_size: 15              # K-mer size for pre-filtering
-  unmerged_detection: false # Also scan unmerged R1/R2 reads separately (optional)
-
-# Sequencing settings
-sequencing:
-  paired: true
-  min_quality: 30
-
-# QC settings
-qc:
-  run_qc: false
-  baseline_condition: 'baseline'
-  mem_fastqc: 4000
-
-# Progress reporting
-pipeline:
-  show_progress: true
-  progress_interval: 1       # Update every 1%
-
-# Quick-mode subsampling (optional)
-quick:
-  enabled: false        # Set true for fast sanity-check runs
-  max_reads: 100000     # Cap per mate when enabled
-  fraction: null        # Optional samplerate override (e.g., 0.01)
-  seed: 1337            # Deterministic subsampling seed
+  sequences_file: 'kinase_sequences.fasta'   # filename inside ref_dir
 ```
+
+The optional sections — `detection` (window/frame/orientation), `preprocessing`,
+`sequencing`, `qc`, `resources`, `quick` (subsampling), plus `variant_retained` and
+`unfused_sequences_file` — all have sensible defaults. To avoid drift, this README does
+**not** restate every option. Two sources are authoritative:
+
+- **`config/examples/config.yaml`** — every option, annotated, ready to copy.
+- **`workflow/schemas/config.schema.yaml`** — the schema (types, defaults, allowed values) the pipeline validates against at startup.
 
 ### Samples File (`config/samples.csv`)
 
@@ -239,7 +214,7 @@ logs/{experiment}/                 # Logs from each rule
 
 results/{experiment}/
 ├── references/
-│   ├── breakpoint_sequences.csv   # All possible breakpoint k-mers
+│   ├── junction_sequences.csv     # All possible junction k-mers
 │   └── domain_ends.csv            # Partner 3' ends for pre-filtering
 ├── counts/
 │   ├── {sample}.fusion_counts.csv # Per-sample fusion counts (merged reads)
@@ -298,11 +273,11 @@ CCDC6_303_Met_WT,8921
 
 The `fusion_id` encodes:
 
-- Partner name
-- Breakpoint position (nucleotides from the start of the truncated component)
-- Anchor name
+- Fusion partner name
+- Breakpoint coordinate (nucleotides from the start of the truncated component)
+- Retained domain name
 
-**Note:** The breakpoint position is relative to whichever component is truncated (as specified by `fusion_library.anchor.truncated_component` in the config). When `truncated_component: 'anchor'`, the breakpoint is measured from the anchor start. When `truncated_component: 'partner'`, it's measured from the partner start.
+**Note:** The breakpoint coordinate is relative to whichever component is truncated (set by `fusion_library.retained.truncated_component`). With `truncated_component: 'retained'`, it is measured from the retained domain start; with `truncated_component: 'partner'`, from the fusion partner start.
 
 ## Breakpoint Conventions
 
@@ -310,27 +285,32 @@ The `fusion_id` encodes:
 
 A fusion ID like `TPR_126_Met_WT` means:
 
-- **Partner:** TPR
-- **Breakpoint:** 126 nucleotides from anchor start (e.g., amino acids 1-42 of MET missing) when `truncated_component: 'anchor'`
-- **Anchor:** Met_WT (kinase domain, variably truncated)
+- **Fusion partner:** TPR
+- **Breakpoint:** coordinate 126 — nucleotides from the start of the truncated component (see note)
+- **Retained domain:** Met_WT (the MET kinase domain)
 
-**Note:** The breakpoint position interpretation depends on the `truncated_component` configuration setting. In the default configuration (`truncated_component: 'anchor'`), the breakpoint represents nucleotides from the anchor start, indicating how much of the anchor's N-terminal region is truncated.
+**Note:** The breakpoint coordinate is measured from the start of whichever component `truncated_component` truncates:
 
-### Breakpoint Sequences
+- `truncated_component: 'retained'` (the default; canonical for kinase fusions) — from the **retained domain** start, indicating how much of its N-terminus is removed (e.g. exon 14 skipping); the fusion partner is full-length.
+- `truncated_component: 'partner'` — from the **fusion partner** start; the fusion partner is variably truncated and the retained domain is full-length.
 
-For each breakpoint, the pipeline generates a k-mer spanning the junction to look for in the reads:
+Both modes detect correctly; choose the value that matches how your library is constructed.
+
+### Junction k-mers
+
+For each candidate junction, the pipeline generates a k-mer spanning the join to search for in the reads. The window is centered on the single junction between the 5′ side (fusion partner + linker) and the 3′ side (retained domain):
 
 ```(markdown)
-Partner sequence:  ...ATGCTAGCTAGC[BREAKPOINT]
-Linker:                            GGGAGC
-Anchor sequence:                          ATGAAAAAG...
+fusion construct:  [ ...fusion partner... ][ linker ][ retained domain... ]
+                                              ▲ junction (end of linker)
 
-Breakpoint k-mer (window=8):
-              TGCTAGCGGGAGCATGAAAAA
-              ←─8 nt─→     ←─8 nt─→
+junction k-mer (window = w):   w nt ending at the junction | w nt after it
+                               └────────── 2·w nt total ──────────┘
 ```
 
-Changing the `breakpoint_window` configuration will change the size of the k-mer generated, with a larger window allowing for more specific breakpoint detection but potentially missing reads that don't span the full window. The length of the k-mer is twice the `breakpoint_window` value plus the length of the linker sequence. In the above example, with a `breakpoint_window` of 8 and a linker sequence of `GGGAGC`, the k-mer length is 16 + 6 = 22.
+The linker is **not** added on top of the window — when `w` is at least the linker length, the linker sits entirely within the 5′ half. So each k-mer is exactly `2 × breakpoint_window` nt, independent of the linker length. For example, `breakpoint_window: 8` with the `GGGAGC` linker yields a 16 nt k-mer (its 3′ 6 nt being the linker); the default `breakpoint_window: 12` yields a 24 nt k-mer.
+
+Changing `breakpoint_window` changes the k-mer size: a larger window is more specific but can miss reads that don't span the full window; a smaller window is more sensitive but less specific.
 
 By default, the window is set to 12 nt. Depending on your particular sequencing data and library construction, you may need to adjust this value. 12 nt is a reasonable default for our libraries, but consider how your library is constructed.
 
@@ -412,4 +392,5 @@ Contributions and feedback are welcome. Please submit an issue or pull request.
 
 ## Getting help
 
-For any issues, please open an issue on the GitHub repository.
+For any issues, please open an issue on the GitHub repository. For
+questions or feedback, [email Chris](https://www.waymentsteelelab.org).
