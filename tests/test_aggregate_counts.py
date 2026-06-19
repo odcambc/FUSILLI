@@ -19,7 +19,6 @@ from aggregate_counts import (
     load_partner_counts,
     load_json_metrics,
     aggregate_merged,
-    aggregate_unmerged,
 )
 
 
@@ -268,44 +267,6 @@ class TestLoadJsonMetrics:
         assert df.iloc[0]["partner_end_reads"] == 0
 
 
-class TestAggregateUnmerged:
-    """Tests for unmerged aggregation."""
-
-    def test_aggregate_unmerged_creates_outputs(self, tmp_path):
-        """Should create all expected output files."""
-        count1 = tmp_path / "sample1.R1.unmerged_fusion_counts.csv"
-        count1.write_text("fusion_id,type,count\nTPR_1_Met_WT,fusion,10\n")
-
-        metrics1 = tmp_path / "sample1.R1.unmerged_fusion_metrics.json"
-        metrics1.write_text(json.dumps({"matched_reads": 100}))
-
-        partner1 = tmp_path / "sample1.R1.unmerged_partner_counts.csv"
-        partner1.write_text(
-            "partner_name,partner_end_count,partner_linker_count\nTPR,50,25\n"
-        )
-
-        summary_out = tmp_path / "summary.csv"
-        qc_out = tmp_path / "qc.csv"
-        partner_out = tmp_path / "partner.csv"
-
-        aggregate_unmerged(
-            counts=[str(count1)],
-            metrics=[str(metrics1)],
-            partner_counts=[str(partner1)],
-            output_summary=str(summary_out),
-            output_qc=str(qc_out),
-            output_partner=str(partner_out),
-        )
-
-        assert summary_out.exists()
-        assert qc_out.exists()
-        assert partner_out.exists()
-
-        summary_df = __import__("pandas").read_csv(summary_out)
-        assert len(summary_df) == 1
-        assert summary_df.iloc[0]["fusion_id"] == "TPR_1_Met_WT"
-
-
 class TestLogParsing:
     """Tests for log parsing functions."""
 
@@ -392,6 +353,21 @@ Avg Insert: 125.5
 
         result = parse_ihist(tmp_path / "missing.ihist")
         assert result is None
+
+    def test_parse_lhist_returns_modal_read_length(self, tmp_path):
+        """Should return the most common read length from an lhist file."""
+        from utils import parse_lhist
+
+        lhist_file = tmp_path / "trim.lhist"
+        lhist_file.write_text("#Length\tCount\n75\t10\n150\t9000\n149\t120\n")
+
+        assert parse_lhist(lhist_file) == 150
+
+    def test_parse_lhist_missing_file(self, tmp_path):
+        """Should return None for missing lhist files."""
+        from utils import parse_lhist
+
+        assert parse_lhist(tmp_path / "missing.lhist") is None
 
 
 if __name__ == "__main__":

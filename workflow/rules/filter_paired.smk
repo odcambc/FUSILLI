@@ -132,22 +132,18 @@ rule filter_quality:
 
 rule merge_reads:
     """
-    Merge paired-end reads with error correction using BBMerge.
+    Error-correct paired-end reads by overlap using BBMerge (ecco), without merging.
 
-    This step:
-    1. Performs error correction using paired-end overlap
-    2. Merges overlapping reads into single sequences
-
-    The merged reads are used for fusion detection as they provide
-    higher confidence sequence spanning the breakpoint.
+    `ecco` corrects mismatches in the overlapping region but keeps both mates at native
+    length, so detection does not depend on insert size. All reads (overlapping or not)
+    stream to the single output; downstream counting dedups per read pair (model C). The
+    output file is named `_merged` for historical reasons but contains unmerged reads.
     """
     input:
         R1_clean="results/{experiment}/quality/{sample}_R1.quality.fastq.gz",
         R2_clean="results/{experiment}/quality/{sample}_R2.quality.fastq.gz"
     output:
         merged="results/{experiment}/merged/{sample}_merged.fastq.gz",
-        unmerged_r1="results/{experiment}/merged/{sample}_R1.unmerged.fastq.gz",
-        unmerged_r2="results/{experiment}/merged/{sample}_R2.unmerged.fastq.gz",
         ihist="stats/{experiment}/merge/{sample}.ihist"
     log:
         "logs/{experiment}/bbmerge/{sample}.log"
@@ -158,29 +154,20 @@ rule merge_reads:
         mem_mb=DEFAULT_MEMORY
     shell:
         """
-        # bbmerge writing separate paired unmerged files (outu1/outu2) hits a
-        # regression in recent bbmap (AssertionError on 39.81). Write a single
-        # interleaved unmerged file (outu) and split it to R1/R2 with reformat.sh,
-        # which is unaffected — robust across bbmap versions.
-        INT="results/{wildcards.experiment}/merged/{wildcards.sample}_unmerged.int.fastq.gz"
+        # ecco error-corrects overlapping pairs without joining them, then streams ALL
+        # reads (overlapping and not) to `out` — there are no unmerged leftovers, so no
+        # outu/reformat split is needed. This also avoids the bbmap outu regression
+        # (AssertionError on 39.81). Reads stay native length; per-pair dedup is done
+        # downstream in string_matcher (model C).
         bbmerge.sh \
             -Xmx$(( {resources.mem_mb} - 2000 ))m \
             in1={input.R1_clean:q} \
             in2={input.R2_clean:q} \
             out={output.merged:q} \
-            outu="$INT" \
             ihist={output.ihist:q} \
             ecco \
             showhiststats=t \
             overwrite=true \
             t={threads} \
             2> {log}
-        reformat.sh \
-            -Xmx$(( {resources.mem_mb} - 2000 ))m \
-            in="$INT" \
-            out1={output.unmerged_r1:q} \
-            out2={output.unmerged_r2:q} \
-            overwrite=true \
-            2>> {log}
-        rm -f "$INT"
         """

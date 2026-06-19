@@ -959,6 +959,18 @@ def count_fusion_matches(
     return fusion_counts
 
 
+def _template_key(name: str) -> str:
+    """Read name with its mate suffix stripped, so both mates of a pair share a key.
+
+    Handles the common ``name/1`` ``name/2`` (and ``name.1``) conventions; when the mate
+    indicator lives only in the FASTQ comment it is already dropped by the parsers, so the
+    two mates share a name unchanged.
+    """
+    if len(name) > 2 and name[-2] in "/." and name[-1] in "12":
+        return name[:-2]
+    return name
+
+
 def count_all_matches(
     fastq_file: str,
     breakpoints: dict[str, dict],
@@ -980,6 +992,7 @@ def count_all_matches(
         "reads_processed": 0,
         "prefilter_pass_reads": 0,
         "matched_reads": 0,
+        "matched_templates": 0,
         "total_matches": 0,
         "unique_fusions_detected": 0,
         "forward_match_events": 0,
@@ -1052,9 +1065,26 @@ def count_all_matches(
     match_count = 0
     unfused_match_count = 0
 
-    for _, seq, _ in parse_fastq(fastq_file):
+    # Model C: count each fusion / partner / unfused once per read *pair* (template), not per
+    # read. ecco keeps mates adjacent in its output, so we dedup within a run of one template
+    # key (read name minus its /1,/2 mate suffix) using O(1) memory.
+    current_key = None
+    seen_fusions: set[str] = set()
+    seen_unfused: set[str] = set()
+    seen_partner_end: set[str] = set()
+    seen_partner_linker: set[str] = set()
+
+    for name, seq, _ in parse_fastq(fastq_file):
         read_count += 1
         metrics["reads_processed"] = read_count
+
+        template_key = _template_key(name)
+        if template_key != current_key:
+            current_key = template_key
+            seen_fusions.clear()
+            seen_unfused.clear()
+            seen_partner_end.clear()
+            seen_partner_linker.clear()
 
         # Compute reverse complement once per read if orientation_check is enabled
         rc_seq = None
@@ -1083,8 +1113,12 @@ def count_all_matches(
             match_count += len(matches)
             metrics["prefilter_pass_reads"] += 1
             metrics["matched_reads"] += 1
-            for fusion_id in matches:
+            new_fusions = [fid for fid in matches if fid not in seen_fusions]
+            if new_fusions and not seen_fusions:
+                metrics["matched_templates"] += 1
+            for fusion_id in new_fusions:
                 fusion_counts[fusion_id] += 1
+                seen_fusions.add(fusion_id)
             metrics["forward_match_events"] += int(f_hit) * len(matches)
             metrics["rc_match_events"] += int(rc_hit) * len(matches)
 
@@ -1101,11 +1135,15 @@ def count_all_matches(
         if partner_hits:
             metrics["partner_end_reads"] += 1
             for partner_name in partner_hits:
-                partner_end_counts[partner_name] += 1
+                if partner_name not in seen_partner_end:
+                    partner_end_counts[partner_name] += 1
+                    seen_partner_end.add(partner_name)
         if partner_linker_hits:
             metrics["partner_linker_reads"] += 1
             for partner_name in partner_linker_hits:
-                partner_linker_counts[partner_name] += 1
+                if partner_name not in seen_partner_linker:
+                    partner_linker_counts[partner_name] += 1
+                    seen_partner_linker.add(partner_name)
 
         if unfused_kmers_by_len:
             unfused_matches, uf_hit, uf_rc_hit = find_unfused_matches_in_read(
@@ -1120,7 +1158,9 @@ def count_all_matches(
                 unfused_match_count += len(unfused_matches)
                 metrics["unfused_reads"] += 1
                 for seq_name in unfused_matches:
-                    unfused_counts[seq_name] += 1
+                    if seq_name not in seen_unfused:
+                        unfused_counts[seq_name] += 1
+                        seen_unfused.add(seq_name)
                 metrics["forward_match_events"] += int(uf_hit) * len(unfused_matches)
                 metrics["rc_match_events"] += int(uf_rc_hit) * len(unfused_matches)
 

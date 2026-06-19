@@ -48,26 +48,6 @@ def get_multiqc_inputs(wildcards):
             sample=SAMPLES
         )
     )
-    if UNMERGED_DETECTION:
-        inputs.extend([
-            "results/{experiment}/unmerged_qc_metrics.csv",
-            "results/{experiment}/unmerged_counts_summary.csv",
-            "results/{experiment}/unmerged_partner_counts_summary.csv",
-        ])
-        inputs.extend(
-            expand(
-                "results/{{experiment}}/counts/{sample}.{mate}.unmerged_fusion_metrics.json",
-                sample=SAMPLES,
-                mate=["R1", "R2"]
-            )
-        )
-        inputs.extend(
-            expand(
-                "results/{{experiment}}/counts/{sample}.{mate}.unmerged_partner_counts.csv",
-                sample=SAMPLES,
-                mate=["R1", "R2"]
-            )
-        )
     return inputs
 
 

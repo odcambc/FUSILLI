@@ -6,8 +6,8 @@ This script aggregates per-sample fusion counts and QC metrics into:
 - fusion_counts_summary.csv: Per-fusion counts across all samples
 - fusion_qc_metrics.csv: Per-sample QC metrics
 - partner_counts_summary.csv: Partner-level counts across samples
-- sensitivity_metrics.csv: Detection sensitivity metrics (merged mode only)
-- decay_metrics.csv: Read count decay through pipeline steps (merged mode only)
+- sensitivity_metrics.csv: Detection sensitivity metrics
+- decay_metrics.csv: Read count decay through pipeline steps
 
 USAGE:
     # Via Snakemake (automatic parameter passing)
@@ -36,15 +36,6 @@ USAGE:
         --output-trim results/{exp}/trim_metrics.csv \
         --output-contam results/{exp}/contam_metrics.csv \
         --output-quality results/{exp}/quality_metrics.csv
-
-    # Standalone unmerged mode
-    python aggregate_counts.py unmerged \
-        --counts results/{exp}/counts/*.R1.unmerged_fusion_counts.csv \
-        --metrics results/{exp}/counts/*.R1.unmerged_fusion_metrics.json \
-        --partner-counts results/{exp}/counts/*.R1.unmerged_partner_counts.csv \
-        --output-summary results/{exp}/unmerged_counts_summary.csv \
-        --output-qc results/{exp}/unmerged_qc_metrics.csv \
-        --output-partner results/{exp}/unmerged_partner_counts_summary.csv
 """
 
 import argparse
@@ -59,6 +50,7 @@ try:
         parse_bbmerge_stats,
         parse_bbduk_stats,
         parse_ihist,
+        parse_lhist,
     )
 except ImportError:
     from workflow.scripts.utils import (
@@ -67,6 +59,7 @@ except ImportError:
         parse_bbmerge_stats,
         parse_bbduk_stats,
         parse_ihist,
+        parse_lhist,
     )
 
 
@@ -429,9 +422,10 @@ def calculate_sensitivity_metrics(
     variant_catalog_path: str | Path,
     breakpoint_window: int,
     ihist_base_path: str | Path | None = None,
+    lhist_base_path: str | Path | None = None,
 ) -> Any:
     """
-    Calculate sensitivity metrics for merged detection.
+    Calculate sensitivity metrics for detection.
 
     Args:
         sample_cols: List of sample column names
@@ -441,6 +435,8 @@ def calculate_sensitivity_metrics(
         variant_catalog_path: Path to variant catalog CSV
         breakpoint_window: Breakpoint window size
         ihist_base_path: Base path for ihist files (e.g., stats/{exp}/merge/)
+        lhist_base_path: Base path for lhist files (e.g., stats/{exp}/trim/), used to
+            recover the read length for the read-coverage correction.
 
     Returns:
         DataFrame with sensitivity metrics
@@ -467,13 +463,41 @@ def calculate_sensitivity_metrics(
         raw_reads = trim_log["input_reads"] if trim_log else 0
         raw_pairs = raw_reads // 2 if raw_reads else 0
 
+        # Read length, for the read-coverage correction. Falls back to 0 (-> S_cond=1,
+        # the previous whole-insert assumption) when the lhist is unavailable.
+        read_length = 0
+        if lhist_base_path:
+            rl = parse_lhist(Path(lhist_base_path) / f"{sample}.lhist")
+            if rl:
+                read_length = rl
+
+        # Containment: probability the junction k-mer falls within the insert at all.
         if avg_insert >= kmer_length and mean_fusion_length > avg_insert:
-            expected_fraction = min(
+            containment = min(
                 1.0,
                 (avg_insert - kmer_length + 1) / (mean_fusion_length - avg_insert + 1),
             )
         else:
-            expected_fraction = 0.0
+            containment = 0.0
+
+        # Read-coverage factor S_cond: a junction in the insert is only detectable if its
+        # k-mer lies wholly within one mate. S_cond = min(1, 2(R-k)/(L-k)); equals 1 below
+        # the cliff (L <= 2R-k) and decays above it. The old metric implicitly assumed
+        # S_cond=1 (whole-insert/merged-read coverage), over-reporting recall for long
+        # inserts that the per-read pipeline cannot fully cover.
+        if read_length > kmer_length and avg_insert > kmer_length:
+            read_coverage = min(
+                1.0, 2 * (read_length - kmer_length) / (avg_insert - kmer_length)
+            )
+        else:
+            read_coverage = 1.0
+
+        expected_fraction = containment * read_coverage
+
+        # Insert-size health flags (QC): which tagmentation regime is this library in?
+        cliff = 2 * read_length - kmer_length if read_length else 0
+        insert_below_kmer = bool(read_length and avg_insert and avg_insert < kmer_length)
+        insert_past_cliff = bool(read_length and avg_insert and avg_insert > cliff)
 
         matched_reads = 0
         if not json_df.empty:
@@ -502,9 +526,15 @@ def calculate_sensitivity_metrics(
             {
                 "sample": sample,
                 "avg_insert_size": float(avg_insert),
+                "read_length": int(read_length),
                 "overlap_median": float(overlap_median),
                 "breakpoint_kmer_length": int(kmer_length),
+                "insert_cliff_2Rk": int(cliff),
+                "insert_below_kmer": insert_below_kmer,
+                "insert_past_cliff": insert_past_cliff,
                 "mean_fusion_length": float(mean_fusion_length),
+                "containment_fraction": float(containment),
+                "read_coverage_factor": float(read_coverage),
                 "expected_detection_fraction": float(expected_fraction),
                 "matching_efficiency": float(matching_efficiency),
                 "end_to_end_efficiency": float(end_to_end_efficiency),
@@ -666,6 +696,7 @@ def aggregate_merged(
     output_contam: str,
     output_quality: str,
     ihist_base_path: str | None = None,
+    lhist_base_path: str | None = None,
 ) -> None:
     """
     Aggregate merged counts and generate all output files.
@@ -731,6 +762,7 @@ def aggregate_merged(
         variant_catalog_path=variant_catalog,
         breakpoint_window=breakpoint_window,
         ihist_base_path=ihist_base_path,
+        lhist_base_path=lhist_base_path,
     )
     sensitivity_df.to_csv(output_sensitivity, index=False)
 
@@ -782,73 +814,36 @@ def aggregate_merged(
         step_df.to_csv(out_path, index=False)
 
 
-def aggregate_unmerged(
-    counts: list[str],
-    metrics: list[str],
-    partner_counts: list[str],
-    output_summary: str,
-    output_qc: str,
-    output_partner: str,
-) -> None:
-    """
-    Aggregate unmerged counts and generate output files.
-    """
-    merged, sample_cols = load_and_merge_counts(counts, "unmerged_fusion_counts")
-
-    merged.to_csv(output_summary, index=False)
-
-    metrics_df = calculate_qc_metrics(merged, sample_cols)
-
-    json_df = load_json_metrics(metrics, "unmerged_fusion_metrics")
-
-    if not json_df.empty:
-        metrics_df = metrics_df.merge(json_df, on="sample", how="left")
-
-    metrics_df.to_csv(output_qc, index=False)
-
-    partner_merged = load_partner_counts(partner_counts)
-    partner_merged.to_csv(output_partner, index=False)
-
-
 def main_snakemake(snakemake) -> None:
     """Entry point when called from Snakemake."""
-    mode = snakemake.params.get("mode", "merged")
     breakpoint_window = snakemake.params.get("breakpoint_window", 12)
     ihist_base = snakemake.params.get("ihist_base_path", None)
+    lhist_base = snakemake.params.get("lhist_base_path", None)
 
-    if mode == "merged":
-        aggregate_merged(
-            counts=snakemake.input.counts,
-            metrics=snakemake.input.metrics,
-            partner_counts=snakemake.input.partner_counts,
-            variant_catalog=snakemake.input.variant_catalog,
-            merge_logs=snakemake.input.merge_logs,
-            trim_logs=snakemake.input.trim_logs,
-            contam_logs=snakemake.input.contam_logs,
-            quality_logs=snakemake.input.quality_logs,
-            trim_stats=snakemake.input.trim_stats,
-            contam_stats=snakemake.input.contam_stats,
-            quality_stats=snakemake.input.quality_stats,
-            breakpoint_window=breakpoint_window,
-            output_summary=snakemake.output.summary,
-            output_qc=snakemake.output.qc_metrics,
-            output_partner=snakemake.output.partner_summary,
-            output_sensitivity=snakemake.output.sensitivity_metrics,
-            output_decay=snakemake.output.decay_metrics,
-            output_trim=snakemake.output.trim_metrics,
-            output_contam=snakemake.output.contam_metrics,
-            output_quality=snakemake.output.quality_metrics,
-            ihist_base_path=ihist_base,
-        )
-    else:
-        aggregate_unmerged(
-            counts=snakemake.input.counts,
-            metrics=snakemake.input.metrics,
-            partner_counts=snakemake.input.partner_counts,
-            output_summary=snakemake.output.summary,
-            output_qc=snakemake.output.qc_metrics,
-            output_partner=snakemake.output.partner_summary,
-        )
+    aggregate_merged(
+        counts=snakemake.input.counts,
+        metrics=snakemake.input.metrics,
+        partner_counts=snakemake.input.partner_counts,
+        variant_catalog=snakemake.input.variant_catalog,
+        merge_logs=snakemake.input.merge_logs,
+        trim_logs=snakemake.input.trim_logs,
+        contam_logs=snakemake.input.contam_logs,
+        quality_logs=snakemake.input.quality_logs,
+        trim_stats=snakemake.input.trim_stats,
+        contam_stats=snakemake.input.contam_stats,
+        quality_stats=snakemake.input.quality_stats,
+        breakpoint_window=breakpoint_window,
+        output_summary=snakemake.output.summary,
+        output_qc=snakemake.output.qc_metrics,
+        output_partner=snakemake.output.partner_summary,
+        output_sensitivity=snakemake.output.sensitivity_metrics,
+        output_decay=snakemake.output.decay_metrics,
+        output_trim=snakemake.output.trim_metrics,
+        output_contam=snakemake.output.contam_metrics,
+        output_quality=snakemake.output.quality_metrics,
+        ihist_base_path=ihist_base,
+        lhist_base_path=lhist_base,
+    )
 
 
 def main_cli() -> None:
@@ -859,7 +854,7 @@ def main_cli() -> None:
         epilog=__doc__,
     )
 
-    parser.add_argument("mode", choices=["merged", "unmerged"], help="Aggregation mode")
+    parser.add_argument("mode", choices=["merged"], help="Aggregation mode")
     parser.add_argument("--counts", nargs="+", required=True, help="Count CSV files")
     parser.add_argument(
         "--metrics", nargs="+", required=True, help="Metrics JSON files"
@@ -894,6 +889,9 @@ def main_cli() -> None:
     )
     parser.add_argument(
         "--ihist-base-path", help="Base path for ihist files (merged mode)"
+    )
+    parser.add_argument(
+        "--lhist-base-path", help="Base path for lhist files (read-length, merged mode)"
     )
     parser.add_argument("--output-summary", required=True, help="Output summary CSV")
     parser.add_argument("--output-qc", required=True, help="Output QC metrics CSV")
@@ -947,15 +945,7 @@ def main_cli() -> None:
             output_contam=args.output_contam,
             output_quality=args.output_quality,
             ihist_base_path=args.ihist_base_path,
-        )
-    else:
-        aggregate_unmerged(
-            counts=args.counts,
-            metrics=args.metrics,
-            partner_counts=args.partner_counts,
-            output_summary=args.output_summary,
-            output_qc=args.output_qc,
-            output_partner=args.output_partner,
+            lhist_base_path=args.lhist_base_path,
         )
 
 

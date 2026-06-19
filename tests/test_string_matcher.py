@@ -365,6 +365,26 @@ IIIIIIIIIIIIIIIIII
 
         assert counts.get('TPR_test', 0) == 2
 
+    def test_mates_of_a_pair_count_once(self, tmp_path):
+        """Model C: both mates of one pair carrying the junction count once, not twice."""
+        breakpoints = {'TPR': {'TPR_test': 'ATGCATGCATGC'}}
+        domain_ends = {'TPR': 'ATGCATGC'}
+        # read1/1 and read1/2 are the two mates of ONE template; read2/1 is a second template.
+        # Per-read counting would give 3; per-pair (model C) gives 2.
+        fastq_content = (
+            "@read1/1\nAAAATGCATGCATGCAAA\n+\nIIIIIIIIIIIIIIIIII\n"
+            "@read1/2\nAAAATGCATGCATGCAAA\n+\nIIIIIIIIIIIIIIIIII\n"
+            "@read2/1\nAAAATGCATGCATGCAAA\n+\nIIIIIIIIIIIIIIIIII\n"
+        )
+        fastq_file = tmp_path / "pairs.fastq"
+        fastq_file.write_text(fastq_content)
+
+        counts = count_fusion_matches(
+            str(fastq_file), breakpoints, domain_ends, show_progress=False
+        )
+
+        assert counts.get('TPR_test', 0) == 2
+
     def test_empty_file_returns_empty_counts(self, tmp_path):
         """Should handle empty/minimal files gracefully."""
         # pyfastx throws RuntimeError on truly empty files, so use a minimal valid FASTQ
